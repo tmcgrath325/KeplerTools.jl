@@ -1,0 +1,13 @@
+name = "KeplerTools"
+uuid = "200436fd-7f69-44ff-b485-688a1ddb115b"
+authors = ["Tom McGrath <tmcgrath325@gmail.com> and contributors"]
+version = "0.1.0"
+
+[compat]
+julia = "1"
+
+[extras]
+Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+
+[targets]
+test = ["Test"]
