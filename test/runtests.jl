@@ -1,4 +1,4 @@
-using KeplerToolbox
+using KeplerTools
 using LinearAlgebra
 using Test
 
@@ -62,9 +62,23 @@ end
     #TODO
 end
 
-@testset "Lambert Solvers" begin
+@testset "Lambert Solver" begin
     include(joinpath(@__DIR__, "..", "data", "kerbol_system.jl"))
-    #TODO
+    torb = KeplerTools.p_lambert(kerbin.orbit, duna.orbit, 5091522, 5588238+5091522)    # Good transfer from Kerbin to Duna
+    @test isapprox(torb.a, 1.68e10, rtol=0.01)                                          # compare with alexmoon's app
+    @test isapprox(torb.e, 0.194, rtol=0.01)
+
+    # for (i,bdi) in enumerate(sun.satellite_bodies)
+    #     for (j,bdj) in enumerate(sun.satellite_bodies)
+    #         if i!=j
+    #             starttime = 0
+    #             endtime = (period!(bdi.orbit)+period!(bdj.orbit))/2
+    #             torb = KeplerTools.p_lambert(bdi.orbit, bdj.orbit, starttime, endtime)
+    #             @test isapprox(StateVector(starttime, torb).position, StateVector(starttime, bdi.orbit).position, rtol=1e-6)
+    #             @test isapprox(StateVector(endtime, torb).position, StateVector(endtime, bdj.orbit).position, rtol=1e-6)
+    #         end
+    #     end
+    # end
 end
 
 @testset "Patched Conic Transfer Calculations" begin

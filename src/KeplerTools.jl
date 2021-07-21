@@ -1,6 +1,5 @@
 module KeplerTools
 
-using Base: Float64
 using StaticArrays
 using Rotations
 using LinearAlgebra

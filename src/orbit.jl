@@ -37,14 +37,17 @@ function state_vector(t, orb::Orbit)
     v = √(orb.primary.μ*(2/r - 1/orb.a))               # speed
     dōdt = v * @SVector([cos(θ+π/2-ϕ),sin(θ+π/2-ϕ),0])  # velocity in orbital plane
     # rotate to reference frame
-    r̄ = perif_to_inert_bases(ō, orb)
-    v̄ = perif_to_inert_bases(dōdt, orb)
+    r̄ = perifocal_to_inertial_bases(ō, orb)
+    v̄ = perifocal_to_inertial_bases(dōdt, orb)
     return r̄, v̄
 end
 
-Orbit(a,body::CelestialObject) = Orbit(a,0,0,0,0,0,0,body,Dict{Symbol,Any}())
-Orbit(a,e,i,Ω,ω,Mo,body::CelestialObject) = Orbit(a,e,i,Ω,ω,Mo,0,body,Dict{Symbol,Any}())
-Orbit(a,e,i,Ω,ω,Mo,epoch,body::CelestialObject) = Orbit(a,e,i,Ω,ω,Mo,epoch,body,Dict{Symbol,Any}())
+Orbit(a,body::CelestialObject
+    ) = Orbit(a,0,0,0,0,0,0,body,Dict{Symbol,Any}())
+Orbit(a,e,i,Ω,ω,Mo,body::CelestialObject
+    ) = Orbit(a,e,i,Ω,ω,Mo,0,body,Dict{Symbol,Any}())
+Orbit(a,e,i,Ω,ω,Mo,epoch,body::CelestialObject
+    ) = Orbit(a,e,i,Ω,ω,Mo,epoch,body,Dict{Symbol,Any}())
 
 StateVector(t, orb::Orbit) = StateVector(state_vector(t,orb)...)
 
@@ -86,17 +89,20 @@ function Orbit(t::Real, r̄::SVector{3,<:Real}, v̄::SVector{3,<:Real}, prim::Ce
             Ω = bound_angle(copysign(1,ē[3]) * acos(copysign(1,dot(n̂,ê))))
         end
     end
-    θ = angle_in_plane(r̄, basis_matrix(Ω, ω, i))
+    θ = angle_in_plane(r̄, basis_MRP(Ω, ω, i))
     M = true_to_mean(θ, e)
     Δt = t - epoch 
     Mo = bound_angle(M - time_to_mean(Δt, period(a,μ)))
     return Orbit(a,e,i,Ω,ω,Mo,epoch,prim)
 end
 
-Orbit(t::Float64, statevec::StateVector, prim::CelestialObject, epoch::Real=t)= Orbit(t, statevec.position, statevec.velocity, prim, epoch)
+Orbit(t::Real, statevec::StateVector, prim::CelestialObject, epoch::Real=t
+    ) = Orbit(t, statevec.position, statevec.velocity, prim, epoch)
 
-OrbitalState(t::Real, orb::Orbit) = OrbitalState(t, StateVector(t,orb), orb)
-OrbitalState(t::Real, statevec::StateVector, prim::CelestialObject, epoch::Real=t) = OrbitalState(t, StateVector, Orbit(t, statevec, prim, epoch))
+OrbitalState(t::Real, orb::Orbit
+    ) = OrbitalState(t, StateVector(t,orb), orb)
+OrbitalState(t::Real, statevec::StateVector, prim::CelestialObject, epoch::Real=t
+    ) = OrbitalState(t, StateVector, Orbit(t, statevec, prim, epoch))
 
 # comparison and sorting methods
 
