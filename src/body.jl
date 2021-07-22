@@ -29,15 +29,27 @@ end
 
 # alternate constructors
 
+function SpaceObject(name::AbstractString, orbit::Orbit, primary::CelestialObject)
+    ob = SpaceObject(name::AbstractString, orbit::Orbit, primary::CelestialObject)
+    add_to_primary!(ob)
+    return bd
+end
+
+set_soi(μ::Real, μprim::Real, a::Real) = a *(μ/μprim)^(2/5)
+
 function CelestialBody(name::AbstractString, eqradius, μ, SoI, rotperiod, rotinitial, orbit::Orbit)
     bd = CelestialBody(name, eqradius, μ, SoI, rotperiod, rotinitial, orbit, orbit.primary, CelestialBody[], SpaceObject[])
     add_to_primary!(bd)
     return bd
 end
 
-Star(name::AbstractString, eqradius, μ) = Star(name, eqradius, μ, CelestialBody[], SpaceObject[])
+function CelestialBody(name::AbstractString, eqradius, μ, rotperiod, rotinitial, orbit::Orbit)
+    bd = CelestialBody(name, eqradius, μ, set_soi(μ, orbit.primary.μ, orbit.a), rotperiod, rotinitial, orbit, orbit.primary, CelestialBody[], SpaceObject[])
+    add_to_primary!(bd)
+    return bd
+end
 
-# set_soi(μ, bd::Union{CelestialBody, Star}) = bd.orbit.a *(μ/bd.μ)^(2/5)
+Star(name::AbstractString, eqradius, μ) = Star(name, eqradius, μ, CelestialBody[], SpaceObject[])
 
 # comparison and sorting methods
 
@@ -87,8 +99,9 @@ Base.show(io::IO, ob::SpaceObject) = println(io,
     """SpaceObject "$(ob.name)" orbiting $(ob.primary.name):\n""",
     "  semi-major axis:\t\t$(ob.orb.a)\n",
     "  eccentricity:\t\t\t$(ob.orb.e)\n",
-    "  inclination:\t\t\t$(deg2rad(ob.orb.i))°\n",
-    "  RA of ascending node:\t\t$(deg2rad(ob.orb.Ω))°\n",
-    "  Argument of periapsis:\t$(deg2rad(ob.orb.ω))°\n",
+    "  inclination:\t\t\t$(rad2deg(ob.orb.i))°\n",
+    "  RA of ascending node:\t\t$(rad2deg(ob.orb.Ω))°\n",
+    "  Argument of periapsis:\t$(rad2deg(ob.orb.ω))°\n",
+    "  mean anomaly at epoch:\t$(rad2deg(orb.Mo))°\n",
     "  epoch:\t\t\t$(ob.orb.epoch) s"
 )

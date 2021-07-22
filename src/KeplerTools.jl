@@ -10,7 +10,7 @@ export CelestialBody, Star, SpaceObject
 export period, period!, time_to_mean, mean_to_time, time_to_true, true_to_time
 export basis_matrix, basis_matrix!
 export angle_in_plane
-export lambert
+export p_lambert
 export departarrive_orbit
 
 include("orbit.jl")

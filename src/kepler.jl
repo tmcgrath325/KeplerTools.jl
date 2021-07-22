@@ -1,4 +1,4 @@
-function kepler(M::Real, e::Real, tol = 1e-12, maxit = 1000)
+function kepler(M::Real, e::Real; tol = 1e-12, maxit = 1000)
     if e == 1           # Parabolic case
         throw(ArgumentError("Parabolic case (e=1) has not been implemented"))
     elseif e < 1        # Elliptical case
@@ -26,7 +26,10 @@ function kepler(M::Real, e::Real, tol = 1e-12, maxit = 1000)
         while (abs(H-Hp) > tol) && (it < maxit)
             it = it + 1
             Hp = H
-            H = H + (M - e*sinh(H) + H)/(e*cosh(M) - 1)
+            H = H + (M - e*sinh(H) + H)/(e*cosh(H) - 1)
+            if it == maxit
+                @show it, M, e
+            end
         end
         return H
     end

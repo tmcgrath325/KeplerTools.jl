@@ -1,9 +1,11 @@
-function p_lambert(r̄ₛ::SVector{3,<:Real}, r̄ₑ::SVector{3,<:Real}, Δt::Real, μ::Real, tol=1e-6::Real, maxit=200::Int)
+function p_lambert(r̄ₛ::AbstractVector{<:Real}, r̄ₑ::AbstractVector{<:Real}, Δt::Real, μ::Real; dir=1, tol=1e-12::Real, maxit=200::Int)
     rₛ, rₑ = norm(r̄ₛ), norm(r̄ₑ)
 
     # true anomaly change for the transfer
-    Δθ = angle_in_plane(r̄ₑ, r̄ₛ, MRP(1I))
-
+    Δθ = atan(norm(cross(r̄ₛ, r̄ₑ)), dot(r̄ₛ, r̄ₑ))             # angle between start and end positions
+    if bound_angle(dir*angle_in_plane(r̄ₑ, r̄ₛ, MRP(1I))) > π
+        Δθ = 2π - Δθ
+    end
     # p iteration constants
     k = rₛ * rₑ * (1-cos(Δθ))
     L = rₛ + rₑ
@@ -13,7 +15,7 @@ function p_lambert(r̄ₛ::SVector{3,<:Real}, r̄ₑ::SVector{3,<:Real}, Δt::Re
     pj = k / (L + √(2m))
     pjj = k / (L - √(2m))
     if Δθ > π
-        pmin = 0
+        pmin = 0.
         pmax = pjj
     else
         pmin = pj
@@ -36,7 +38,7 @@ function p_lambert(r̄ₛ::SVector{3,<:Real}, r̄ₑ::SVector{3,<:Real}, Δt::Re
         if a > 0    # Elliptical case
             sinΔE = -rₛ*rₑ*df/√(μ*a)
             cosΔE = 1 - rₛ/a * (1-f)
-            ΔE = atan(sinΔE, cosΔE)
+            ΔE = bound_angle(atan(sinΔE, cosΔE))
             t = g + √(a^3/μ)*(ΔE-sinΔE)
             dtdp = -g/(2p) - 1.5a*(t-g)*(k^2 + (2m-L^2)*p^2)/(m*k*p^2) + √(a^3/μ)*(2k*sinΔE)/(p*(k-L*p))
         else        # Hyperbolic case
@@ -45,7 +47,6 @@ function p_lambert(r̄ₛ::SVector{3,<:Real}, r̄ₑ::SVector{3,<:Real}, Δt::Re
             dtdp = -g/(2p) - 1.5a*(t-g)*(k^2 + (2m-L^2)*p^2)/(m*k*p^2) - √(-a^3/μ)*(2k*sinh(ΔF))/(p*(k-L*p))
         end
         err = abs(Δt - t)/Δt
-        @show err
         pnext = p + (Δt - t)/dtdp
         # If the next guess is outside of allowed bounds, use bisection
         if pnext < pmin
@@ -54,16 +55,18 @@ function p_lambert(r̄ₛ::SVector{3,<:Real}, r̄ₑ::SVector{3,<:Real}, Δt::Re
             pnext = (p + pmax)/2
         end
     end
-    if it == maxit
-        error("Maximum number of iterations exceeded: failed to converge")
-    end
-    v̄ = (r̄ₑ - f*r̄ₛ)/g
-    return v̄
+    # if it == maxit
+    #     @show err
+    #     println("Warning! Maximum number of iterations exceeded: Lambert solver failed to converge")
+    # end
+    v̄ₛ = (r̄ₑ - f*r̄ₛ)/g
+    return v̄ₛ
 end
 
 function p_lambert(sorb::Orbit, eorb::Orbit, stime, etime; kwargs...) 
     r̄ₛ, r̄ₑ = state_vector(stime,sorb)[1], state_vector(etime,eorb)[1]
-    v̄ = p_lambert(r̄ₛ, r̄ₑ, etime-stime, sorb.primary.μ; kwargs...)
-    return Orbit(stime, r̄ₛ, v̄, sorb.primary)
+    d = sorb.i<π/2 ? 1 : -1     # choose short/long way based on clockwise sense of `sorb`
+    v̄ₛ = p_lambert(r̄ₛ, r̄ₑ, etime-stime, sorb.primary.μ; dir=d, kwargs...)
+    return Orbit(stime, r̄ₛ, v̄ₛ, sorb.primary)
 end
 

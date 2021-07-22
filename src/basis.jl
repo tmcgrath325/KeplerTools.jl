@@ -1,13 +1,17 @@
 function basis_MRP(Ω::Real, ω::Real, i::Real)
-    R1 = MRP([cos(Ω)  sin(Ω)  0;    # rotate around z-axis to match Ω
-             -sin(Ω)  cos(Ω)  0;
-              0       0       1])
-    R2 = MRP([1       0       0;    # rotate around x-axis to match i
-              0  cos(i)  sin(i);
-              0 -sin(i)  cos(i)])
-    R3 = MRP([cos(ω)  sin(ω)  0;    # rotate around z-axis to match ω
-             -sin(ω)  cos(ω)  0;
-              0       0       1])
+    Ω, ω, i = Float64(Ω), Float64(ω), Float64(i)
+    # R1 = MRP([cos(Ω)  sin(Ω)  0.;    # rotate around z-axis to match Ω
+    #          -sin(Ω)  cos(Ω)  0.;
+    #           0.      0.      1.])
+    # R2 = MRP([1.      0.      0.;    # rotate around x-axis to match i
+    #           0.  cos(i)  sin(i);
+    #           0. -sin(i)  cos(i)])
+    # R3 = MRP([cos(ω)  sin(ω)  0.;    # rotate around z-axis to match ω
+    #          -sin(ω)  cos(ω)  0.;
+    #           0.      0.      1.])
+    R1 = MRP((cos(Ω), -sin(Ω), 0., sin(Ω), cos(Ω), 0., 0., 0., 1.))
+    R2 = MRP((1., 0., 0., 0., cos(i), -sin(i), 0., sin(i), cos(i)))
+    R3 = MRP((cos(ω), -sin(ω), 0., sin(ω), cos(ω), 0., 0., 0., 1.))
     return R3*R2*R1
 end
 
@@ -21,8 +25,8 @@ function basis_MRP(xvec::AbstractVector{<:Real}, yvec::AbstractVector{<:Real})
 end
 
 basis_MRP() = MRP(SMatrix{3,3}(1I))
-basis_MRP(orb::Orbit) = basis_MRP(orb.Ω, orb.ω, orb.i)
-basis_MRP!(orb::Orbit) = get!(orb.attrs, :basis_MRP, basis_MRP(orb))
+# basis_MRP(orb::Orbit) = basis_MRP(orb.Ω, orb.ω, orb.i)
+# basis_MRP!(orb::Orbit) = get!(orb.attrs, :basis_MRP, basis_MRP(orb))
 
-inertial_to_perifocal_bases(vec::SVector{3}, orb::Orbit) = basis_MRP!(orb)*vec
-perifocal_to_inertial_bases(vec::SVector{3}, orb::Orbit) = basis_MRP!(orb)\vec
+inertial_to_perifocal_bases(vec::AbstractVector{<:Real}, orb::Orbit) = orb.basis*SVector{3,Float64}(vec)
+perifocal_to_inertial_bases(vec::AbstractVector{<:Real}, orb::Orbit) = orb.basis\SVector{3,Float64}(vec)
