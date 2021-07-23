@@ -11,3 +11,10 @@ function isapproxangle(θ₁,θ₂; atol=1e-12, rtol=1e-12)
     rem = (diff%2π)/(2π)
     return isapprox(rem,0,atol=atol) || isapprox(rem,1,atol=atol)
 end
+
+function wrap_acos(x::Real)
+    if abs(x) > 1
+        x = copysign(1,x)
+    end
+    return acos(x)
+end

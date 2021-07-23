@@ -1,5 +1,3 @@
-period(a::Real, μ::Real) = 2π*√(abs(a)^3 / μ)
-
 # type definitions
 
 abstract type CelestialObject end
@@ -30,20 +28,32 @@ end
 
 # alternate constructors
 
-flight_path_angle(θ::Real, orb::Orbit) = atan(orb.e*sin(θ)/(1+orb.e*cos(θ)))
+period(a, μ) = 2π*√(abs(a)^3 / μ)
 
-function state_vector(t::Real, orb::Orbit)
-    θ = time_to_true(t, orb)
-    r = orb.a*(1-orb.e^2)/(1+orb.e*cos(θ))              # height
+flight_path_angle(θ, e) = atan(e*sin(θ)/(1+e*cos(θ)))
+flight_path_angle(θ, orb::Orbit) = flight_path_angle(θ, orb.e)
+
+orbital_distance(θ, a, e) = a*(1-e^2)/(1+e*cos(θ)) 
+orbital_distance(θ, orb::Orbit) = orbital_distance(θ, orb.a, orb.e)
+
+orbital_angle(d, a, e) = wrap_acos((a*(1-e^2)/d - 1)/e)
+orbital_angle(d, orb::Orbit) = orbital_angle(d, orb.a, orb.e)
+
+function state_vector(t, a, e, i, Ω, ω, Mo, epoch, μ, T=period(a,μ), basis=basis_MRP(Ω, ω, i))
+    θ = time_to_true(t, e, T, Mo, epoch)
+    r = orbital_distance(θ, a, e)                       # height
     ō = r * @SVector([cos(θ),sin(θ),0])                 # position in orbital plane
-    ϕ = flight_path_angle(θ, orb)                       # flight path angle
-    v = √(orb.primary.μ*(2/r - 1/orb.a))                # speed
+    ϕ = flight_path_angle(θ, e)                         # flight path angle
+    v = √(μ*(2/r - 1/a))                                # speed
     dōdt = v * @SVector([cos(θ+π/2-ϕ),sin(θ+π/2-ϕ),0])  # velocity in orbital plane
     # rotate to reference frame
-    r̄ = perifocal_to_inertial_bases(ō, orb)
-    v̄ = perifocal_to_inertial_bases(dōdt, orb)
+    r̄ = perifocal_to_inertial_bases(ō, basis)
+    v̄ = perifocal_to_inertial_bases(dōdt, basis)
     return r̄, v̄
 end
+
+state_vector(t, orb::Orbit
+    ) = state_vector(t, orb.a, orb.e, orb.i, orb.Ω, orb.ω, orb.Mo, orb.epoch, orb.primary.μ, orb.period, orb.basis)
 
 Orbit(a,body::CelestialObject
     ) = Orbit(a,0.,0.,0.,0.,0.,0.,body,period(a,body.μ),basis_MRP(0.,0.,0.))
@@ -52,9 +62,11 @@ Orbit(a,e,i,Ω,ω,Mo,body::CelestialObject
 Orbit(a,e,i,Ω,ω,Mo,epoch,body::CelestialObject
     ) = Orbit(a,e,i,Ω,ω,Mo,epoch,body,period(a,body.μ),basis_MRP(Ω, ω, i))
 
+StateVector(t, a, e, i, Ω, ω, Mo, epoch, μ, T=period(a,μ), basis=basis_MRP(Ω, ω, i)
+    ) = StateVector(state_vector(t, a, e, i, Ω, ω, Mo, epoch, μ, T, basis)...)
 StateVector(t, orb::Orbit) = StateVector(state_vector(t,orb)...)
 
-function Orbit(t::Real, r̄::SVector{3,<:Real}, v̄::SVector{3,<:Real}, prim::CelestialObject, epoch::Real=t)
+function Orbit(t, r̄::SVector{3,<:Real}, v̄::SVector{3,<:Real}, prim::CelestialObject, epoch=t)
     r = norm(r̄) 
     v = norm(v̄)
     μ = prim.μ
@@ -89,7 +101,7 @@ function Orbit(t::Real, r̄::SVector{3,<:Real}, v̄::SVector{3,<:Real}, prim::Ce
     ω = try bound_angle(copysign(1,ē[3]) * acos(dot(n̂,ê)))
     catch error
         if isa(error, DomainError)
-            Ω = bound_angle(copysign(1,ē[3]) * acos(copysign(1,dot(n̂,ê))))
+            ω = bound_angle(copysign(1,ē[3]) * acos(copysign(1,dot(n̂,ê))))
         end
     end
     θ = angle_in_plane(r̄, basis_MRP(Ω, ω, i))
@@ -104,12 +116,12 @@ function Orbit(t::Real, r̄::SVector{3,<:Real}, v̄::SVector{3,<:Real}, prim::Ce
     return Orbit(a,e,i,Ω,ω,Mo,epoch,prim)
 end
 
-Orbit(t::Real, statevec::StateVector, prim::CelestialObject, epoch::Real=t
+Orbit(t, statevec::StateVector, prim::CelestialObject, epoch=t
     ) = Orbit(t, statevec.position, statevec.velocity, prim, epoch)
 
-OrbitalState(t::Real, orb::Orbit
+OrbitalState(t, orb::Orbit
     ) = OrbitalState(t, StateVector(t,orb), orb)
-OrbitalState(t::Real, statevec::StateVector, prim::CelestialObject, epoch::Real=t
+OrbitalState(t, statevec::StateVector, prim::CelestialObject, epoch=t
     ) = OrbitalState(t, StateVector, Orbit(t, statevec, prim, epoch))
 
 # comparison and sorting methods

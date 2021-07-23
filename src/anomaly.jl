@@ -1,7 +1,7 @@
-time_to_mean(t::Real, T::Real, Mo::Real=0, epoch::Real=0) = Mo + 2π*(t - epoch)/T
+time_to_mean(t, T, Mo=0, epoch=0) = Mo + 2π*(t - epoch)/T
 # time_to_mean(t, a, μ, Mo=0, epoch=0) = time_to_mean(t, period(a, μ), Mo=0, epoch=0)
 
-function time_to_mean(t::Real, orb::Orbit)
+function time_to_mean(t, orb::Orbit)
     M = time_to_mean(t, orb.period, orb.Mo, orb.epoch)
     if orb.e < 1
         return bound_angle(M)
@@ -10,7 +10,7 @@ function time_to_mean(t::Real, orb::Orbit)
     end
 end
 
-function mean_to_time(M::Real, T::Real, Mo=0::Real, epoch=0::Real, tmin=nothing) 
+function mean_to_time(M, T, Mo=0, epoch=0, tmin=nothing) 
     t = epoch + (M-Mo)*T/(2π)
     if tmin === nothing
         return t
@@ -20,9 +20,9 @@ function mean_to_time(M::Real, T::Real, Mo=0::Real, epoch=0::Real, tmin=nothing)
 end
 
 # mean_to_time(M, a, μ, Mo=0, epoch=0, tmin=nothing) = mean_to_time(M, period(a, μ), Mo, epoch, tmin)
-mean_to_time(M::Real, orb::Orbit, tmin=nothing) = mean_to_time(M, orb.period, orb.Mo, orb.epoch, tmin)
+mean_to_time(M, orb::Orbit, tmin=nothing) = mean_to_time(M, orb.period, orb.Mo, orb.epoch, tmin)
 
-function mean_to_true(M::Real, e::Real)
+function mean_to_true(M, e)
     if e == 1       # Parabolic case
         throw(ArgumentError("Parabolic case (e=1) not implemented"))
     elseif e < 1    # Elliptical case
@@ -34,15 +34,15 @@ function mean_to_true(M::Real, e::Real)
     end
 end
 
-function time_to_true(t::Real, e::Real, T::Real, Mo::Real=0, epoch::Real=0)
+function time_to_true(t, e, T, Mo=0, epoch=0)
     M = time_to_mean(t, T, Mo, epoch)
     return mean_to_true(M, e)
 end
 
 # time_to_true(t, e, a, μ, Mo=0, epoch=0) = time_to_true(t, e, period(a, μ), Mo, epoch)
-time_to_true(t::Real, orb::Orbit) = time_to_true(t, orb.e, orb.period, orb.Mo, orb.epoch)
+time_to_true(t, orb::Orbit) = time_to_true(t, orb.e, orb.period, orb.Mo, orb.epoch)
 
-function true_to_mean(θ::Real, e::Real)
+function true_to_mean(θ, e)
     if e == 1       # Parabolic case
         throw(ArgumentError("Parabolic case (e=1) not implemented"))
     elseif e < 1    # Elliptical case
@@ -55,7 +55,7 @@ function true_to_mean(θ::Real, e::Real)
     end
 end
 
-true_to_mean(θ::Real, orb::Orbit) = true_to_mean(θ, orb.e)
+true_to_mean(θ, orb::Orbit) = true_to_mean(θ, orb.e)
 
 function true_to_time(θ, e, T, Mo=0, epoch=0, tmin=nothing)
     M = true_to_mean(θ, e)
@@ -63,4 +63,4 @@ function true_to_time(θ, e, T, Mo=0, epoch=0, tmin=nothing)
 end
 
 # true_to_time(θ, e, a, μ, Mo=0, epoch=0, tmin=nothing) = true_to_time(θ, e, period(a, μ), Mo, epoch, tmin)
-true_to_time(θ::Real, orb::Orbit, tmin=nothing) = true_to_time(θ, orb.e, orb.period, orb.Mo, orb.epoch, tmin)
+true_to_time(θ, orb::Orbit, tmin=nothing) = true_to_time(θ, orb.e, orb.period, orb.Mo, orb.epoch, tmin)

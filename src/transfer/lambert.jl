@@ -1,4 +1,4 @@
-function p_lambert(r̄ₛ::AbstractVector{<:Real}, r̄ₑ::AbstractVector{<:Real}, Δt::Real, μ::Real; dir=1, tol=1e-12::Real, maxit=200::Int)
+function p_lambert(r̄ₛ::AbstractVector{<:Real}, r̄ₑ::AbstractVector{<:Real}, Δt, μ; dir=1, tol=1e-12, maxit=200)
     rₛ, rₑ = norm(r̄ₛ), norm(r̄ₑ)
 
     # true anomaly change for the transfer

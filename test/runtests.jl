@@ -1,3 +1,4 @@
+using Base: byte_string_classify
 using KeplerTools
 using LinearAlgebra
 using Test
@@ -220,6 +221,22 @@ end
         d = orb.i<π/2 ? 1 : -1
         @test isapprox(p_lambert(startstate.position, endstate.position, endtime-starttime, μ; dir=d), startstate.velocity, rtol=1e-6)
     end
+end
+
+@testset "Departure and arrival trajectory calculation" begin
+    include(joinpath(@__DIR__, "..", "data", "kerbol_system.jl"))
+    # define transfer trajectory
+    starttime = 5091522.
+    endtime = starttime + 5588238.
+    torb = p_lambert(kerbin.orbit, duna.orbit, starttime, endtime)
+    v̄rel = StateVector(starttime, torb).velocity - StateVector(starttime, kerbin.orbit).velocity
+
+    # define parking orbit
+    pkorb = Orbit(kerbin.eqradius+100000, kerbin)
+
+    # optimize ejection trajectory
+    dorb, Δv̄ = departarrive_true_anomaly(pkorb, v̄rel, starttime)
+
 end
 
 @testset "Patched Conic Transfer Calculations" begin

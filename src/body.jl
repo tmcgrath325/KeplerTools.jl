@@ -35,7 +35,7 @@ function SpaceObject(name::AbstractString, orbit::Orbit, primary::CelestialObjec
     return bd
 end
 
-set_soi(μ::Real, μprim::Real, a::Real) = a *(μ/μprim)^(2/5)
+set_soi(μ, μprim, a) = a *(μ/μprim)^(2/5)
 
 function CelestialBody(name::AbstractString, eqradius, μ, SoI, rotperiod, rotinitial, orbit::Orbit)
     bd = CelestialBody(name, eqradius, μ, SoI, rotperiod, rotinitial, orbit, orbit.primary, CelestialBody[], SpaceObject[])
