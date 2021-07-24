@@ -4,7 +4,7 @@ time_to_mean(t, T, Mo=0, epoch=0) = Mo + 2π*(t - epoch)/T
 function time_to_mean(t, orb::Orbit)
     M = time_to_mean(t, orb.period, orb.Mo, orb.epoch)
     if orb.e < 1
-        return bound_angle(M)
+        return wrap_angle(M)
     else
         return M
     end
@@ -20,7 +20,7 @@ function mean_to_time(M, T, Mo=0, epoch=0, tmin=nothing)
 end
 
 # mean_to_time(M, a, μ, Mo=0, epoch=0, tmin=nothing) = mean_to_time(M, period(a, μ), Mo, epoch, tmin)
-mean_to_time(M, orb::Orbit, tmin=nothing) = mean_to_time(M, orb.period, orb.Mo, orb.epoch, tmin)
+mean_to_time(M, orb::Orbit, tmin=nothing) = mean_to_time(M, orb.period, orb.Mo, orb.epoch, orb.e<1 ? tmin : nothing)
 
 function mean_to_true(M, e)
     if e == 1       # Parabolic case
@@ -47,7 +47,7 @@ function true_to_mean(θ, e)
         throw(ArgumentError("Parabolic case (e=1) not implemented"))
     elseif e < 1    # Elliptical case
         E = 2*atan(sin(θ/2)*√(1-e), cos(θ/2)*√(1+e))
-        return bound_angle(E - e*sin(E))
+        return wrap_angle(E - e*sin(E))
     else            # Hyperbolic case
         H = 2*atanh(tan(θ/2)*√((e-1)/(e+1)))
         # H = copysign(acosh((e+cos(θ))/(1+e*cos(θ))), θ)
@@ -59,7 +59,7 @@ true_to_mean(θ, orb::Orbit) = true_to_mean(θ, orb.e)
 
 function true_to_time(θ, e, T, Mo=0, epoch=0, tmin=nothing)
     M = true_to_mean(θ, e)
-    return mean_to_time(M, T, Mo, epoch, tmin)
+    return mean_to_time(M, T, Mo, epoch, e<1 ? tmin : nothing)
 end
 
 # true_to_time(θ, e, a, μ, Mo=0, epoch=0, tmin=nothing) = true_to_time(θ, e, period(a, μ), Mo, epoch, tmin)

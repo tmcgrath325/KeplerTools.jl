@@ -4,7 +4,7 @@ function angle_in_plane(vec::AbstractVector{<:Real}, mat::Union{MRP,AbstractMatr
 end
 
 angle_in_plane(vec::AbstractVector{<:Real}, vecref::AbstractVector{<:Real}, mat::Union{MRP,AbstractMatrix}=MRP(1I)
-    ) = bound_angle(angle_in_plane(vec,mat) - angle_in_plane(vecref,mat))
+    ) = wrap_angle(angle_in_plane(vec,mat) - angle_in_plane(vecref,mat))
 angle_in_plane(vec::AbstractVector{<:Real}, vecref::AbstractVector{<:Real}, xdir::AbstractVector{<:Real}, ydir::AbstractVector{<:Real}
     ) = angle_in_plane(vec, vecref, basis_MRP(xdir,ydir))
 
@@ -18,8 +18,8 @@ angle_in_plane(vec::AbstractVector{<:Real}, vecref::AbstractVector{<:Real}, orb:
 
 # angle between the vector `vec` projected to the orbital plane and the orbit's position at time `t`
 angle_in_plane(vec::AbstractVector{<:Real}, orb::Orbit, t::Real
-    ) = bound_angle(angle_in_plane(vec, state_vector(t, orb)[1], orb))
+    ) = wrap_angle(angle_in_plane(vec, time_state_vector(t, orb)[1], orb))
 
 # angle between the orbital positions of `orb` from `orbref` at time `t`, after projecting the position `orb` to the orbital plane of `orbref`
 angle_in_plane(orb::Orbit, orbref::Orbit, t::Real
-    ) = bound_angle(angle_in_plane(state_vector(t, orb)[1], orbref, t))
+    ) = wrap_angle(angle_in_plane(time_state_vector(t, orb)[1], orbref, t))

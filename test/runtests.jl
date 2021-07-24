@@ -3,6 +3,8 @@ using KeplerTools
 using LinearAlgebra
 using Test
 
+const KT = KeplerTools
+
 @testset "Orbits and Bodies" begin
     sun = Star("Kerbol", 261600000., 1.1723328e18);
     @test length(sun.satellite_bodies) == 0
@@ -99,10 +101,10 @@ end
     # recover orbits from state vectors
     for bd in sun.satellite_bodies
         t = (rand()-2)*10*bd.orbit.period + bd.orbit.epoch
-        svec = StateVector(t, bd.orbit)
+        svec = time_StateVector(t, bd.orbit)
         orb = Orbit(t, svec, bd.primary, bd.orbit.epoch)
         @test orb ≈ bd.orbit
-        svec2 = StateVector(t, orb)
+        svec2 = time_StateVector(t, orb)
         @test isapprox(svec.position, svec2.position, atol=norm(svec.position)*1e-6)
         @test isapprox(svec.velocity, svec2.velocity, atol=norm(svec.velocity)*1e-6)
         orb2 = Orbit(t, svec2, bd.primary)
@@ -120,7 +122,7 @@ end
                     sun
                     )
         time = orb.epoch + 1e6*rand()
-        stvec = StateVector(time, orb)
+        stvec = time_StateVector(time, orb)
         @test Orbit(time, stvec, sun) ≈ orb
     end
 
@@ -138,7 +140,7 @@ end
                     sun
                     )
         time = orb.epoch + 1e6*rand()
-        stvec = StateVector(time, orb)
+        stvec = time_StateVector(time, orb)
         @test Orbit(time, stvec, sun) ≈ orb
     end
 end
@@ -188,11 +190,11 @@ end
                     )
         starttime = orb.epoch + 1e6*rand()
         endtime = starttime + orb.period*rand()
-        startstate, endstate = StateVector(starttime, orb), StateVector(endtime, orb)
+        startstate, endstate = time_StateVector(starttime, orb), time_StateVector(endtime, orb)
         orb2 = p_lambert(orb, orb, starttime, endtime)
         @test orb2 ≈ orb
-        @test isapprox(StateVector(starttime, orb2), startstate)
-        @test isapprox(StateVector(endtime, orb2), endstate)
+        @test isapprox(time_StateVector(starttime, orb2), startstate)
+        @test isapprox(time_StateVector(endtime, orb2), endstate)
         d = orb.i<π/2 ? 1 : -1
         @test isapprox(p_lambert(startstate.position, endstate.position, endtime-starttime, μ; dir=d), startstate.velocity, rtol=1e-6)
     end
@@ -213,11 +215,11 @@ end
                     )
         starttime = orb.epoch + 1e6*rand()
         endtime = starttime + orb.period*rand()
-        startstate, endstate = StateVector(starttime, orb), StateVector(endtime, orb)
+        startstate, endstate = time_StateVector(starttime, orb), time_StateVector(endtime, orb)
         orb2 = p_lambert(orb, orb, starttime, endtime)
         @test orb2 ≈ orb
-        @test isapprox(StateVector(starttime, orb2), startstate)
-        @test isapprox(StateVector(endtime, orb2), endstate)
+        @test isapprox(time_StateVector(starttime, orb2), startstate)
+        @test isapprox(time_StateVector(endtime, orb2), endstate)
         d = orb.i<π/2 ? 1 : -1
         @test isapprox(p_lambert(startstate.position, endstate.position, endtime-starttime, μ; dir=d), startstate.velocity, rtol=1e-6)
     end
@@ -229,13 +231,25 @@ end
     starttime = 5091522.
     endtime = starttime + 5588238.
     torb = p_lambert(kerbin.orbit, duna.orbit, starttime, endtime)
-    v̄rel = StateVector(starttime, torb).velocity - StateVector(starttime, kerbin.orbit).velocity
+    v̄rel = time_StateVector(starttime, torb).velocity - time_StateVector(starttime, kerbin.orbit).velocity
 
     # define parking orbit
     pkorb = Orbit(kerbin.eqradius+100000, kerbin)
 
-    # optimize ejection trajectory
-    dorb, Δv̄ = departarrive_true_anomaly(pkorb, v̄rel, starttime)
+    # get quick departure orbit (valid for circular parking orbits)
+    dorb, Δv̄ = quick_departarrive_orbit(Orbit(700000, kerbin), v̄rel, starttime)
+    @test time_StateVector(starttime, dorb).velocity ≈ v̄rel
+    # TODO: match position of start orbit 
+    # @test StateVector(dorb.epoch, dorb).position ≈ StateVector(dorb.epoch, pkorb).position
+
+    # recover (something similar to) the quick departure orbit from the optimizer
+    θₒ = time_to_true(dorb.epoch, pkorb)
+    d2orb, eccobj, Δv̄2 = departarrive_orbit(pkorb, v̄rel, starttime)
+    @test isapprox(d2orb.a, dorb.a; rtol=0.01, atol=0.01)
+    @test isapprox(d2orb.e, dorb.e; rtol=0.01, atol=0.01)
+    @test KT.isapproxangle(d2orb.i, dorb.i ; rtol=0.01, atol=0.01)
+    @test KT.isapproxangle(d2orb.Ω, dorb.Ω; rtol=0.01, atol=0.01)
+    @test KT.isapproxangle(d2orb.ω, dorb.ω; rtol=0.01, atol=0.01)
 
 end
 

@@ -1,4 +1,4 @@
-# type definitions
+### type definitions ###
 
 abstract type CelestialObject end
 
@@ -26,9 +26,14 @@ struct OrbitalState
     orbit::Orbit
 end
 
-# alternate constructors
+
+
+### helper methods ###
 
 period(a, μ) = 2π*√(abs(a)^3 / μ)
+
+
+## angle-based methods ##
 
 flight_path_angle(θ, e) = atan(e*sin(θ)/(1+e*cos(θ)))
 flight_path_angle(θ, orb::Orbit) = flight_path_angle(θ, orb.e)
@@ -36,24 +41,59 @@ flight_path_angle(θ, orb::Orbit) = flight_path_angle(θ, orb.e)
 orbital_distance(θ, a, e) = a*(1-e^2)/(1+e*cos(θ)) 
 orbital_distance(θ, orb::Orbit) = orbital_distance(θ, orb.a, orb.e)
 
+# true anomaly of the orbit at the given distance (rising side)
 orbital_angle(d, a, e) = wrap_acos((a*(1-e^2)/d - 1)/e)
 orbital_angle(d, orb::Orbit) = orbital_angle(d, orb.a, orb.e)
 
-function state_vector(t, a, e, i, Ω, ω, Mo, epoch, μ, T=period(a,μ), basis=basis_MRP(Ω, ω, i))
-    θ = time_to_true(t, e, T, Mo, epoch)
-    r = orbital_distance(θ, a, e)                       # height
-    ō = r * @SVector([cos(θ),sin(θ),0])                 # position in orbital plane
-    ϕ = flight_path_angle(θ, e)                         # flight path angle
-    v = √(μ*(2/r - 1/a))                                # speed
-    dōdt = v * @SVector([cos(θ+π/2-ϕ),sin(θ+π/2-ϕ),0])  # velocity in orbital plane
-    # rotate to reference frame
-    r̄ = perifocal_to_inertial_bases(ō, basis)
-    v̄ = perifocal_to_inertial_bases(dōdt, basis)
-    return r̄, v̄
-end
+# direction of the orbital velocity at the given true anomaly
+orbital_direction(θ, e) = θ + π/2 - flight_path_angle(θ, e)
+orbital_direction(d, a, e) = orbital_direction(orbital_angle(d,a,e), e)
 
-state_vector(t, orb::Orbit
-    ) = state_vector(t, orb.a, orb.e, orb.i, orb.Ω, orb.ω, orb.Mo, orb.epoch, orb.primary.μ, orb.period, orb.basis)
+# orbital position at the specified true anomaly
+function orbital_position(θ, a, e, basis::MRP{Float64})
+    r = orbital_distance(θ, a, e) 
+    ō = r * @SVector([cos(θ),sin(θ),0])
+    return perifocal_to_inertial_bases(ō, basis)
+end
+orbital_position(θ, a, e, i, Ω, ω) = orbital_position(θ, a, e, basis_MRP(Ω, ω, i))
+orbital_position(θ, orb::Orbit) = orbital_position(θ, orb.a, orb.e, orb.basis)
+
+# orbital velocity at the specified true anomaly
+function orbital_velocity(θ, a, e, μ, basis::MRP{Float64})
+    r = orbital_distance(θ, a, e) 
+    ϕ = orbital_direction(θ, e)
+    v = √(μ*(2/r - 1/a))
+    dōdt = v * @SVector([cos(ϕ),sin(ϕ),0])
+    return perifocal_to_inertial_bases(dōdt, basis)
+end
+orbital_velocity(θ, a, e, μ, i, Ω, ω) = orbital_velocity(θ, a, e, μ, basis_MRP(Ω, ω, i))
+orbital_velocity(θ, orb::Orbit) = orbital_velocity(θ, orb.a, orb.e, orb.primary.μ, orb.basis)
+
+state_vector(θ, a, e, μ, basis) = (orbital_position(θ, a, e, basis), orbital_velocity(θ, a, e, μ, basis))
+state_vector(θ, a, e, μ, i, Ω, ω) = state_vector(θ, a, e, μ, basis_MRP(Ω, ω, i))
+state_vector(θ, orb::Orbit) = state_vector(θ, orb.a, orb.e, orb.primary.μ, orb.basis)
+
+
+## time-based methods ##
+
+time_orbital_position(t, a, e, i, Ω, ω, Mo, epoch, μ, T=period(a,μ)
+    ) = orbital_position(time_to_true(t, e, T, Mo, epoch), a, e, i, Ω, ω)
+time_orbital_position(t, orb::Orbit
+    ) = orbital_position(time_to_true(t, orb.e, orb.period, orb.Mo, orb.epoch), orb.a, orb.e, orb.basis)
+
+time_orbital_velocity(t, a, e, i, Ω, ω, Mo, epoch, μ, T=period(a,μ)
+    ) = orbital_velocity(time_to_true(t, e, T, Mo, epoch), a, e, μ, i, Ω, ω)
+time_orbital_velocity(t, orb::Orbit
+    ) = orbital_velocity(time_to_true(t, orb.e, orb.period, orb.Mo, orb.epoch), orb.a, orb.e, orb.primary.μ, orb.basis)
+
+time_state_vector(t, a, e, i, Ω, ω, Mo, epoch, μ, T=period(a,μ)
+    ) = state_vector(time_to_true(t, e, T, Mo, epoch), a, e, μ, i, Ω, ω)
+time_state_vector(t, orb::Orbit
+    ) = state_vector(time_to_true(t, orb.e, orb.period, orb.Mo, orb.epoch), orb.a, orb.e, orb.primary.μ, orb.basis)
+
+
+
+### Alternate Constructors ###
 
 Orbit(a,body::CelestialObject
     ) = Orbit(a,0.,0.,0.,0.,0.,0.,body,period(a,body.μ),basis_MRP(0.,0.,0.))
@@ -62,9 +102,11 @@ Orbit(a,e,i,Ω,ω,Mo,body::CelestialObject
 Orbit(a,e,i,Ω,ω,Mo,epoch,body::CelestialObject
     ) = Orbit(a,e,i,Ω,ω,Mo,epoch,body,period(a,body.μ),basis_MRP(Ω, ω, i))
 
-StateVector(t, a, e, i, Ω, ω, Mo, epoch, μ, T=period(a,μ), basis=basis_MRP(Ω, ω, i)
-    ) = StateVector(state_vector(t, a, e, i, Ω, ω, Mo, epoch, μ, T, basis)...)
-StateVector(t, orb::Orbit) = StateVector(state_vector(t,orb)...)
+StateVector(args...) = StateVector(state_vector(args...)...)
+StateVector(θ, orb::Orbit) = StateVector(state_vector(θ,orb)...)
+
+time_StateVector(args...) = StateVector(time_state_vector(args...)...)
+time_StateVector(t, orb::Orbit) = StateVector(time_state_vector(t,orb)...)
 
 function Orbit(t, r̄::SVector{3,<:Real}, v̄::SVector{3,<:Real}, prim::CelestialObject, epoch=t)
     r = norm(r̄) 
@@ -73,9 +115,11 @@ function Orbit(t, r̄::SVector{3,<:Real}, v̄::SVector{3,<:Real}, prim::Celestia
     if r == 0
         throw(ArgumentError("Invalid position"))
     end
+
     a = 1 / (2/r - (v^2)/μ)
     h̄ = cross(r̄,v̄)
     i = acos(h̄[3]/norm(h̄))
+
     ē = cross(v̄,h̄)/μ - r̄/r
     e = norm(ē)
     if isapprox(e, 0, atol=1e-15)       # if circular
@@ -84,6 +128,7 @@ function Orbit(t, r̄::SVector{3,<:Real}, v̄::SVector{3,<:Real}, prim::Celestia
     else
         ê = ē/e
     end
+
     n̄ = cross(@SVector([0.,0.,1.]), h̄)
     n = norm(n̄)
     if isapprox(n, 0, atol=1e-15)       # if uninclined
@@ -92,23 +137,15 @@ function Orbit(t, r̄::SVector{3,<:Real}, v̄::SVector{3,<:Real}, prim::Celestia
     else
         n̂ = n̄/n
     end
-    Ω = try bound_angle(copysign(1,n̂[2]) * acos(n̂[1]))
-    catch error
-        if isa(error, DomainError)
-            Ω = bound_angle(copysign(1,n̂[2]) * acos(copysign(1,n̂[1])))
-        end
-    end
-    ω = try bound_angle(copysign(1,ē[3]) * acos(dot(n̂,ê)))
-    catch error
-        if isa(error, DomainError)
-            ω = bound_angle(copysign(1,ē[3]) * acos(copysign(1,dot(n̂,ê))))
-        end
-    end
+
+    Ω = wrap_angle(copysign(1,n̂[2]) * wrap_acos(n̂[1]))
+    ω = wrap_angle(copysign(1,ē[3]) * wrap_acos(dot(n̂,ê)))
+
     θ = angle_in_plane(r̄, basis_MRP(Ω, ω, i))
     M = true_to_mean(θ, e)
     Δt = t - epoch 
     if e < 1
-        Mo = bound_angle(M - time_to_mean(Δt, period(a,μ)))
+        Mo = wrap_angle(M - time_to_mean(Δt, period(a,μ)))
     else
         Mo = M - time_to_mean(Δt, period(a,μ))
     end
@@ -124,7 +161,7 @@ OrbitalState(t, orb::Orbit
 OrbitalState(t, statevec::StateVector, prim::CelestialObject, epoch=t
     ) = OrbitalState(t, StateVector, Orbit(t, statevec, prim, epoch))
 
-# comparison and sorting methods
+### comparison and sorting methods ###
 
 function Base.isless(orb1::Orbit, orb2::Orbit)
     fnames = fieldnames(Orbit)
@@ -152,7 +189,7 @@ function Base.isapprox(stvec1::StateVector, stvec2::StateVector; atol=1e-6, rtol
     return r && v
 end
 
-# descriptive display
+### descriptive display ###
 
 Base.show(io::IO, orb::Orbit) = println(io,
     "Orbit above $(orb.primary.name):\n",

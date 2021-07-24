@@ -28,8 +28,23 @@ basis_MRP() = MRP(SMatrix{3,3}(1I))
 # basis_MRP(orb::Orbit) = basis_MRP(orb.Ω, orb.ω, orb.i)
 # basis_MRP!(orb::Orbit) = get!(orb.attrs, :basis_MRP, basis_MRP(orb))
 
+# methods for switching orbital reference frames
+
 inertial_to_perifocal_bases(vec::AbstractVector{<:Real}, basis::MRP{Float64}) = basis*vec
 inertial_to_perifocal_bases(vec::AbstractVector{<:Real}, orb::Orbit) = inertial_to_perifocal_bases(vec, orb.basis)
 
 perifocal_to_inertial_bases(vec::AbstractVector{<:Real}, basis::MRP{Float64}) = basis\vec
 perifocal_to_inertial_bases(vec::AbstractVector{<:Real}, orb::Orbit) = perifocal_to_inertial_bases(vec, orb.basis)
+
+# methods for instantaneous orientation (prograde, radial, normal) 
+function orientation_MRP(pos, vel, h=cross(pos, vel))
+    prograde = vel/norm(vel)
+    radial = cross(prograde, h)
+    radial = radial/norm(radial)
+    return basis_MRP(prograde, radial)
+end
+
+orientation_MRP(stvec::StateVector) = orientation_MRP(stvec.position, stvec.velocity)
+orientation_MRP(θ, orb::Orbit) = orientation_MRP(StateVector(θ, orb))
+
+time_orientation_MRP(t, orb::Orbit) = orientation_MRP(time_to_true(t, orb), orb)
