@@ -255,5 +255,19 @@ end
 
 @testset "Patched Conic Transfer Calculations" begin
     include(joinpath(@__DIR__, "..", "data", "kerbol_system.jl"))
-    #TODO
+    # Transfer from Kerbin to Duna
+    startorb = Orbit(kerbin.eqradius+100000, kerbin)
+    endorb   = Orbit(duna.eqradius  +100000, duna)
+    starttime = 5091522.
+    endtime = starttime + 5588238.;
+    tfer = Transfer(startorb, endorb, starttime, endtime)
+
+    # Porkchop plot containing time ranges around above transfer
+    startrange = [0.,               852*6*3600.]
+    flightrange =[151 *6 *3600.,    453*6. *3600.]
+    pc = Porkchop(startorb, endorb, startrange..., flightrange...)
+
+    @test isapprox(minimum(pc.Δv), tfer.Δv; rtol=0.01)
 end
+
+

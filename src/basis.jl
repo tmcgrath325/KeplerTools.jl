@@ -48,3 +48,11 @@ orientation_MRP(stvec::StateVector) = orientation_MRP(stvec.position, stvec.velo
 orientation_MRP(θ, orb::Orbit) = orientation_MRP(StateVector(θ, orb))
 
 time_orientation_MRP(t, orb::Orbit) = orientation_MRP(time_to_true(t, orb), orb)
+
+function align_vectors(vec::AbstractVector{<:Real}, vecref::AbstractVector{<:Real})
+    nvec, nvecref = normalize(vec), normalize(vecref)
+    axis = normalize(cross(nvec, nvecref))
+    angle = acos(dot(nvec, nvecref))
+
+    return MRP(AngleAxis(angle, axis...))
+end

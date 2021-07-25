@@ -17,8 +17,8 @@ export angle_in_plane
 
 export p_lambert
 export departarrive_orbit, quick_departarrive_orbit
-export Transfer
-export Porkchop
+export Transfer, quickTransfer
+export Porkchop, quickPorkchop
 
 export draw_orbit, draw_central_body, draw_orbiting_body, draw_system
 export draw_burn_arrow

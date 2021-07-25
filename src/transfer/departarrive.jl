@@ -17,12 +17,11 @@ function departarrive_true_anomaly_objective(θ, pkorb::Orbit{<:CelestialBody}, 
     r̄ₒ = orbital_position(θ, pkorb)
     rₒ = norm(r̄ₒ)
     rₛₚ = pkorb.primary.SoI
-    h̄ = cross(r̄ₒ,v̄rel)
-    n̄ = cross(@SVector([0.,0.,1.]), h̄)
-    n̂ = n̄/norm(n̄)
+    ĥ = normalize(cross(r̄ₒ,v̄rel))
+    n̂ = normalize(cross(@SVector([0.,0.,1.]), ĥ))
 
     a =  1 / (2/rₛₚ - sum(abs2,v̄rel)/μ)
-    i = wrap_acos(h̄[3]/norm(h̄))
+    i = wrap_acos(ĥ[3])
     Ω = wrap_angle(copysign(1,n̂[2]) * acos(n̂[1]))
 
     if a > 0
@@ -65,8 +64,8 @@ function departarrive_orbit(pkorb::Orbit{<:CelestialBody}, v̄rel::AbstractVecto
     c = out ? 1 : -1
     # optimize dv against true anomaly, with each true anomaly being optimized for eccentricity
     if pkorb.e < 1           # elliptical case: any true anomaly
-        lb = Float64(-2π)
-        ub = Float64(2π)
+        lb = -2π
+        ub = 2π
     else                    # hyperbolic case: true anomalies occuring within the SoI
         ub = -lb = orbital_angle(pkorb.primary.SoI, pkorb.a, pkorb.e) - eps(Float64)
     end
@@ -74,7 +73,7 @@ function departarrive_orbit(pkorb::Orbit{<:CelestialBody}, v̄rel::AbstractVecto
     objectivefun(θ) = departarrive_objectivefun(θ, pkorb, v̄rel, tₛₚ, c)
 
     res = optimize(objectivefun, lb, ub, Brent())
-    θₚₖ = Float64(Optim.minimizer(res))
+    θₚₖ = Optim.minimizer(res)
 
     daorb, eccobj, Δv̄ = departarrive_true_anomaly_objective(θₚₖ, pkorb, v̄rel, tₛₚ, c)
     if eccobj > 1e-3
@@ -110,20 +109,10 @@ function quick_departarrive_orbit(pkorb::Orbit{<:CelestialBody}, v̄rel::Abstrac
         r̄ₒ = @SVector([rₒ, 0, 0])
         v̄ₒ = @SVector([0, vₒ, 0])
         v̄relplane = inertial_to_perifocal_bases(v̄rel, pkorb)
-        ψ₁ = atan(v̄relplane[3], √(sum(abs2, v̄ₛₚ) - v̄ₛₚ[1]^2 - v̄relplane[3]^2))
-        # R₁ = MRP([1        0        0;                   # rotate around x-axis to match i
-        #           0  cos(ψ₁) -sin(ψ₁);
-        #           0  sin(ψ₁)  cos(ψ₁)])
-        R₁ = MRP((1.,0.,0.,0.,cos(ψ₁),sin(ψ₁),0.,-sin(ψ₁),cos(ψ₁)))
-        R1v̄ₛₚ = R₁*v̄ₛₚ
-        ψ₂ = atan(v̄relplane[2], v̄relplane[1]) - atan(R1v̄ₛₚ[2], R1v̄ₛₚ[1])
-        # R₂ = MRP([cos(ψ₂) -sin(ψ₂)  0;                   # rotate around z-axis to match ω
-        #           sin(ψ₂)  cos(ψ₂)  0;
-        #           0        0        1]))
-        R₂ = MRP((cos(ψ₂),sin(ψ₂),0.,-sin(ψ₂),cos(ψ₂),0.,0.,0.,1.))
 
-        v̄ₒ = perifocal_to_inertial_bases(R₂*R₁*v̄ₒ, pkorb)
-        r̄ₒ = perifocal_to_inertial_bases(R₂*R₁*r̄ₒ, pkorb)
+        R = align_vectors(v̄ₛₚ, v̄relplane)               # align velocity at SoI with input direction
+        v̄ₒ = perifocal_to_inertial_bases(R*v̄ₒ, pkorb)
+        r̄ₒ = perifocal_to_inertial_bases(R*r̄ₒ, pkorb)
 
         δθ = angle_in_plane(r̄ₒ, pkorb)
         r̄ₒpkorb = state_vector(δθ, pkorb)[1]
@@ -137,15 +126,18 @@ function quick_departarrive_orbit(pkorb::Orbit{<:CelestialBody}, v̄rel::Abstrac
         end
     end
     Δt = true_to_time(θₛₚ, e, period(a, μ))
-
     θₚₖ = angle_in_plane(r̄ₒ, pkorb)
+    tₚₖ = true_to_time(θₚₖ, pkorb, tₛₚ-Δt-pkorb.period/2)
     v̄ₚₖ = orbital_velocity(θₚₖ, pkorb)
-    Δv̄ = v̄ₒ - v̄ₚₖ
-    return Orbit(tₛₚ - Δt, r̄ₒ, v̄ₒ, pkorb.primary), Δv̄
+    Δv̄ = c*(v̄ₒ .- v̄ₚₖ)
+    return Orbit(tₚₖ, r̄ₒ, v̄ₒ, pkorb.primary), Δv̄
 end
 
-departure_orbit(pkorb::Orbit, v̄rel::SVector{3,Float64}, tₛₚ; kwargs...) = departarrive_orbit(pkorb, v̄rel, tₛₚ; out=true,  kwargs...)
-arrival_orbit(pkorb::Orbit, v̄rel::SVector{3,Float64}, tₛₚ; kwargs...)   = departarrive_orbit(pkorb, v̄rel, tₛₚ; out=false, kwargs...)
+departure_orbit(pkorb::Orbit{<:CelestialBody}, v̄rel::AbstractVector{<:Real}, tₛₚ; kwargs...) = departarrive_orbit(pkorb, v̄rel, tₛₚ; out=true,  kwargs...)
+arrival_orbit(pkorb::Orbit{<:CelestialBody}, v̄rel::AbstractVector{<:Real}, tₛₚ; kwargs...)   = departarrive_orbit(pkorb, v̄rel, tₛₚ; out=false, kwargs...)
+
+quick_departure_orbit(pkorb::Orbit{<:CelestialBody}, v̄rel::AbstractVector{<:Real}, tₛₚ; kwargs...) = quick_departarrive_orbit(pkorb, v̄rel, tₛₚ; out=true, kwargs...)
+quick_arrival_orbit(pkorb::Orbit{<:CelestialBody}, v̄rel::AbstractVector{<:Real}, tₛₚ; kwargs...)   = quick_departarrive_orbit(pkorb, v̄rel, tₛₚ; out=false, kwargs...)
 
 function get_patch_state(orb::Orbit; out)
     c = out ? 1 : -1 
