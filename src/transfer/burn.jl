@@ -4,7 +4,7 @@ struct Burn
     time::Float64
 end
 
-orientation_components(brn::Burn) = time_orientation_MRP(brn.time, brn.orbit) * brn.Δv̄
+orientation_components(brn::Burn) = time_orientation_rotation(brn.time, brn.orbit) \ brn.Δv̄
 
 
 ### descriptive display ###

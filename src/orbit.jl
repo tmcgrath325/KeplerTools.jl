@@ -12,7 +12,7 @@ struct Orbit{P}
     epoch::Float64
     primary::P
     period::Float64
-    basis::MRP{Float64}
+    basis::RotZXZ{Float64}
 end
 
 struct StateVector
@@ -50,27 +50,27 @@ orbital_direction(θ, e) = θ + π/2 - flight_path_angle(θ, e)
 orbital_direction(d, a, e) = orbital_direction(orbital_angle(d,a,e), e)
 
 # orbital position at the specified true anomaly
-function orbital_position(θ, a, e, basis::MRP{Float64})
+function orbital_position(θ, a, e, basis::Rotation{3,Float64})
     r = orbital_distance(θ, a, e) 
     ō = r * @SVector([cos(θ),sin(θ),0])
     return perifocal_to_inertial_bases(ō, basis)
 end
-orbital_position(θ, a, e, i, Ω, ω) = orbital_position(θ, a, e, basis_MRP(Ω, ω, i))
+orbital_position(θ, a, e, i, Ω, ω) = orbital_position(θ, a, e, basis_rotation(Ω, i, ω))
 orbital_position(θ, orb::Orbit) = orbital_position(θ, orb.a, orb.e, orb.basis)
 
 # orbital velocity at the specified true anomaly
-function orbital_velocity(θ, a, e, μ, basis::MRP{Float64})
+function orbital_velocity(θ, a, e, μ, basis::Rotation{3,Float64})
     r = orbital_distance(θ, a, e) 
     ϕ = orbital_direction(θ, e)
     v = √(μ*(2/r - 1/a))
     dōdt = v * @SVector([cos(ϕ),sin(ϕ),0])
     return perifocal_to_inertial_bases(dōdt, basis)
 end
-orbital_velocity(θ, a, e, μ, i, Ω, ω) = orbital_velocity(θ, a, e, μ, basis_MRP(Ω, ω, i))
+orbital_velocity(θ, a, e, μ, i, Ω, ω) = orbital_velocity(θ, a, e, μ, basis_rotation(Ω, i, ω))
 orbital_velocity(θ, orb::Orbit) = orbital_velocity(θ, orb.a, orb.e, orb.primary.μ, orb.basis)
 
 state_vector(θ, a, e, μ, basis) = (orbital_position(θ, a, e, basis), orbital_velocity(θ, a, e, μ, basis))
-state_vector(θ, a, e, μ, i, Ω, ω) = state_vector(θ, a, e, μ, basis_MRP(Ω, ω, i))
+state_vector(θ, a, e, μ, i, Ω, ω) = state_vector(θ, a, e, μ, basis_rotation(Ω, i, ω))
 state_vector(θ, orb::Orbit) = state_vector(θ, orb.a, orb.e, orb.primary.μ, orb.basis)
 
 
@@ -96,11 +96,11 @@ time_state_vector(t, orb::Orbit
 ### Alternate Constructors ###
 
 Orbit(a,body::CelestialObject
-    ) = Orbit(a,0.,0.,0.,0.,0.,0.,body,period(a,body.μ),basis_MRP(0.,0.,0.))
+    ) = Orbit(a,0.,0.,0.,0.,0.,0.,body,period(a,body.μ),basis_rotation(0.,0.,0.))
 Orbit(a,e,i,Ω,ω,Mo,body::CelestialObject
-    ) = Orbit(a,e,i,Ω,ω,Mo,0.,body,period(a,body.μ),basis_MRP(Ω, ω, i))
+    ) = Orbit(a,e,i,Ω,ω,Mo,0.,body,period(a,body.μ),basis_rotation(Ω, i, ω))
 Orbit(a,e,i,Ω,ω,Mo,epoch,body::CelestialObject
-    ) = Orbit(a,e,i,Ω,ω,Mo,epoch,body,period(a,body.μ),basis_MRP(Ω, ω, i))
+    ) = Orbit(a,e,i,Ω,ω,Mo,epoch,body,period(a,body.μ),basis_rotation(Ω, i, ω))
 
 StateVector(args...) = StateVector(state_vector(args...)...)
 StateVector(θ, orb::Orbit) = StateVector(state_vector(θ,orb)...)
@@ -141,7 +141,7 @@ function Orbit(t, r̄::AbstractVector{<:Real}, v̄::AbstractVector{<:Real}, prim
     Ω = wrap_angle(copysign(1,n̂[2]) * wrap_acos(n̂[1]))
     ω = wrap_angle(copysign(1,ē[3]) * wrap_acos(dot(n̂,ê)))
 
-    θ = angle_in_plane(r̄, basis_MRP(Ω, ω, i))
+    θ = angle_in_plane(r̄, basis_rotation(Ω, i, ω))
     M = true_to_mean(θ, e)
     Δt = t - epoch 
     if e < 1
@@ -177,10 +177,21 @@ end
 function Base.isapprox(orb1::Orbit, orb2::Orbit; atol=1e-6, rtol=1e-6)
     a = isapprox(orb1.a, orb2.a; atol=atol, rtol=rtol)
     e = isapprox(orb1.e, orb2.e; atol=atol, rtol=rtol)
-    i = isapproxangle(orb1.i, orb2.i; atol=atol, rtol=rtol)
-    M = isapproxangle(time_to_mean(0, orb1), time_to_mean(0, orb2), atol=atol, rtol=rtol)
-    pos = isapprox(StateVector(0,orb1), StateVector(0,orb2); atol=atol, rtol=rtol)
-    return a && e && i && M && pos
+    b = isapprox(orb1.basis, orb2.basis;  atol=atol, rtol=rtol)
+    pos = isapprox(time_StateVector(0,orb1), time_StateVector(0,orb2); atol=atol, rtol=rtol)
+    if !a
+        @show orb1.a, orb2.a
+    end
+    if !e
+        @show orb1.e, orb2.e
+    end
+    if !b
+        @show orb1.basis, orb2.basis
+    end
+    if !pos
+        @show time_StateVector(0,orb1), time_StateVector(0,orb2)
+    end
+    return a && e && b && pos
 end
 
 function Base.isapprox(stvec1::StateVector, stvec2::StateVector; atol=1e-6, rtol=1e-6)

@@ -3,7 +3,7 @@ function departarrive_eccentricity_objective(e, a, Ω, i, r̄ₒ, rₛₚ, μ, v
     rₒ = norm(r̄ₒ)
     θₒ = c * orbital_angle(rₒ, a, e)
     θₛₚ = c * orbital_angle(rₛₚ, a, e)
-    ω = wrap_angle(angle_in_plane(r̄ₒ, basis_MRP(Ω, 0., i))-θₒ)
+    ω = wrap_angle(angle_in_plane(r̄ₒ, basis_rotation(Ω, 0., i))-θₒ)
 
     v̄ₛₚ = orbital_velocity(θₛₚ,a,e,μ,i,Ω,ω)
 
