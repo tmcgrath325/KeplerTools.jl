@@ -28,7 +28,7 @@ function Transfer(startorb::Orbit, endorb::Orbit, starttime, endtime)
     didx = tidx-1
     while didx > 0
         sorb = didx == 1 ? startorb : transferpath[didx-1].orbit
-        dorb, eccobj, Δv̄dep = departure_orbit(sorb, v̄dep, stime)
+        dorb = departure_orbit(sorb, v̄dep, stime)[1]
         push!(dorbs, dorb)
         stime = dorb.epoch
         v̄dep = time_state_vector(stime,dorb)[2] .- time_state_vector(stime,sorb)[2]
@@ -41,7 +41,7 @@ function Transfer(startorb::Orbit, endorb::Orbit, starttime, endtime)
     aidx = tidx+1
     while aidx < length(transferpath)+1
         eorb = aidx == length(transferpath) ? endorb : transferpath[aidx+1].orbit
-        aorb, eccobj, Δv̄arr = arrival_orbit(eorb, v̄arr, etime)
+        aorb = arrival_orbit(eorb, v̄arr, etime)[1]
         push!(aorbs, aorb)
         etime = aorb.epoch
         v̄arr = time_state_vector(etime,eorb)[2] .- time_state_vector(etime,aorb)[2]
@@ -71,4 +71,7 @@ function Transfer(startorb::Orbit, endorb::Orbit, starttime, endtime)
                     burns,
                     Δv,
                     )
+end
+
+function math_patch_times()
 end

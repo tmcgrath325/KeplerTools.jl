@@ -91,7 +91,7 @@ end
 
 end
 
-@testset "Bases" begin
+@testset "Bases and Rotations" begin
     include(joinpath(@__DIR__, "..", "data", "kerbol_system.jl"))
     #TODO
 end
@@ -163,7 +163,7 @@ end
 @testset "Lambert Solver" begin
     # test from Problems 5.3 and 5.4, http://www.braeunig.us/
     #  au = 1.495978707e11     # number of meters per astronomical unit
-    μ = 3.964016e-14        # the real sunm AU^3/m^2
+    μ = 3.964016e-14        # the real sun AU^3/m^2
     Δt = 207*24*60*60
     r̄ₛ = [0.473265, -0.899215, 0.] # .* au
     r̄ₑ = [0.066842, 1.561256, 0.030948] # .* au
@@ -172,7 +172,7 @@ end
 
     # transfer from Kerbin to Duna, from alexmoon's app: https://alexmoon.github.io/ksp/
     include(joinpath(@__DIR__, "..", "data", "kerbol_system.jl"))
-    torb = KeplerTools.p_lambert(kerbin.orbit, duna.orbit, 5091522, 5588238+5091522)
+    torb = KeplerTools.p_lambert(kerbin.orbit, duna.orbit, 5091522., 5588238. +5091522.)
     @test isapprox(torb.a, 1.68e10, rtol=0.01)            
     @test isapprox(torb.e, 0.194, rtol=0.01)
 
@@ -237,7 +237,7 @@ end
     pkorb = Orbit(kerbin.eqradius+100000, kerbin)
 
     # get quick departure orbit (valid for circular parking orbits)
-    dorb, Δv̄ = quick_departarrive_orbit(Orbit(700000, kerbin), v̄rel, starttime)
+    dorb, Δv̄ = quick_departarrive_orbit(pkorb, v̄rel, starttime)
     @test time_StateVector(starttime, dorb).velocity ≈ v̄rel
     # TODO: match position of start orbit 
     # @test StateVector(dorb.epoch, dorb).position ≈ StateVector(dorb.epoch, pkorb).position

@@ -55,9 +55,9 @@ function p_lambert(r̄ₛ::AbstractVector{<:Real}, r̄ₑ::AbstractVector{<:Real
             pnext = (p + pmax)/2
         end
     end
-    if it == maxit
-        @warn "Lambert solver failed to converge: err = $err"
-    end
+    # if it == maxit
+    #     @warn "Lambert solver failed to converge: err = $err"
+    # end
     v̄ₛ = (r̄ₑ - f*r̄ₛ)/g
     return v̄ₛ
 end

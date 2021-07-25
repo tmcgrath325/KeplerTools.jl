@@ -1,4 +1,6 @@
-time_to_mean(t, T, Mo=0, epoch=0) = Mo + 2π*(t - epoch)/T
+function time_to_mean(t, T, Mo=0., epoch=0.) 
+    return Mo + 2π*(t - epoch)/T
+end
 # time_to_mean(t, a, μ, Mo=0, epoch=0) = time_to_mean(t, period(a, μ), Mo=0, epoch=0)
 
 function time_to_mean(t, orb::Orbit)

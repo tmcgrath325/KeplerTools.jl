@@ -2,7 +2,7 @@
 
 abstract type CelestialObject end
 
-struct Orbit
+struct Orbit{P}
     a::Float64
     e::Float64
     i::Float64
@@ -10,7 +10,7 @@ struct Orbit
     ω::Float64
     Mo::Float64
     epoch::Float64
-    primary::CelestialObject
+    primary::P
     period::Float64
     basis::MRP{Float64}
 end
@@ -21,7 +21,7 @@ struct StateVector
 end
 
 struct OrbitalState
-    time::Float64
+    time::Real
     statevector::StateVector
     orbit::Orbit
 end
@@ -98,7 +98,7 @@ time_state_vector(t, orb::Orbit
 Orbit(a,body::CelestialObject
     ) = Orbit(a,0.,0.,0.,0.,0.,0.,body,period(a,body.μ),basis_MRP(0.,0.,0.))
 Orbit(a,e,i,Ω,ω,Mo,body::CelestialObject
-    ) = Orbit(a,e,i,Ω,ω,Mo,0,body,period(a,body.μ),basis_MRP(Ω, ω, i))
+    ) = Orbit(a,e,i,Ω,ω,Mo,0.,body,period(a,body.μ),basis_MRP(Ω, ω, i))
 Orbit(a,e,i,Ω,ω,Mo,epoch,body::CelestialObject
     ) = Orbit(a,e,i,Ω,ω,Mo,epoch,body,period(a,body.μ),basis_MRP(Ω, ω, i))
 
@@ -108,7 +108,7 @@ StateVector(θ, orb::Orbit) = StateVector(state_vector(θ,orb)...)
 time_StateVector(args...) = StateVector(time_state_vector(args...)...)
 time_StateVector(t, orb::Orbit) = StateVector(time_state_vector(t,orb)...)
 
-function Orbit(t, r̄::SVector{3,<:Real}, v̄::SVector{3,<:Real}, prim::CelestialObject, epoch=t)
+function Orbit(t, r̄::AbstractVector{<:Real}, v̄::AbstractVector{<:Real}, prim::CelestialObject, epoch=t)
     r = norm(r̄) 
     v = norm(v̄)
     μ = prim.μ

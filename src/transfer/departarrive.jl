@@ -7,22 +7,22 @@ function departarrive_eccentricity_objective(e, a, Ω, i, r̄ₒ, rₛₚ, μ, v
 
     v̄ₛₚ = orbital_velocity(θₛₚ,a,e,μ,i,Ω,ω)
 
-    return (a,e,i,Ω,ω,), 1-dot(v̄ₛₚ./norm(v̄ₛₚ), v̄rel./norm(v̄rel))
+    return 1-dot(v̄ₛₚ./norm(v̄ₛₚ), v̄rel./norm(v̄rel)), ω
 end
 
-function departarrive_true_anomaly_objective(θ, pkorb::Orbit, v̄rel::AbstractVector{<:Real}, tₛₚ, c)
+function departarrive_true_anomaly_objective(θ, pkorb::Orbit{<:CelestialBody}, v̄rel::AbstractVector{<:Real}, tₛₚ, c)
     # optimize the eccentricity of the departure/arrival orbit against the departure/arrival vector
     μ = pkorb.primary.μ
 
-    r̄ₒ = state_vector(θ, pkorb)[1]
+    r̄ₒ = orbital_position(θ, pkorb)
     rₒ = norm(r̄ₒ)
     rₛₚ = pkorb.primary.SoI
     h̄ = cross(r̄ₒ,v̄rel)
     n̄ = cross(@SVector([0.,0.,1.]), h̄)
     n̂ = n̄/norm(n̄)
 
-    a = 1 / (2/rₛₚ - sum(abs2,v̄rel)/μ)
-    i = acos(h̄[3]/norm(h̄))
+    a =  1 / (2/rₛₚ - sum(abs2,v̄rel)/μ)
+    i = wrap_acos(h̄[3]/norm(h̄))
     Ω = wrap_angle(copysign(1,n̂[2]) * acos(n̂[1]))
 
     if a > 0
@@ -34,11 +34,11 @@ function departarrive_true_anomaly_objective(θ, pkorb::Orbit, v̄rel::AbstractV
         ub = ub == 1 ? 1. + 2*eps(Float64) : ub
     end
 
-    objectivefun(e) = departarrive_eccentricity_objective(e, a, Ω, i, r̄ₒ, rₛₚ, μ, v̄rel, c)[2]
+    objectivefun(e) = departarrive_eccentricity_objective(e, a, Ω, i, r̄ₒ, rₛₚ, μ, v̄rel, c)[1]
     res = optimize(objectivefun, lb, ub, Brent())
     e = Optim.minimizer(res)
 
-    (a,e,i,Ω,ω,), eccobj = departarrive_eccentricity_objective(e, a, Ω, i, r̄ₒ, rₛₚ, μ, v̄rel, c)
+    eccobj, ω = departarrive_eccentricity_objective(e, a, Ω, i, r̄ₒ, rₛₚ, μ, v̄rel, c)
     θₒ = c * orbital_angle(rₒ, a, e)
     θₛₚ = c * orbital_angle(rₛₚ, a, e)
     Mₒ = true_to_mean(θₒ, e)
@@ -56,24 +56,25 @@ function departarrive_true_anomaly_objective(θ, pkorb::Orbit, v̄rel::AbstractV
     return daorb, eccobj, Δv̄
 end
 
-function departarrive_orbit(pkorb::Orbit, v̄rel::AbstractVector{<:Real}, tₛₚ::Real; out=true)
+function departarrive_objectivefun(θ, pkorb, v̄rel, tₛₚ, c)
+    err, Δv̄ = departarrive_true_anomaly_objective(θ, pkorb, v̄rel, tₛₚ, c)[2:3]
+    return norm(Δv̄) * exp(1000*err)        # penalize mismatched direction
+end
+
+function departarrive_orbit(pkorb::Orbit{<:CelestialBody}, v̄rel::AbstractVector{<:Real}, tₛₚ; out=true)
     c = out ? 1 : -1
     # optimize dv against true anomaly, with each true anomaly being optimized for eccentricity
     if pkorb.e < 1           # elliptical case: any true anomaly
-        lb = -2π
-        ub = 2π
+        lb = Float64(-2π)
+        ub = Float64(2π)
     else                    # hyperbolic case: true anomalies occuring within the SoI
         ub = -lb = orbital_angle(pkorb.primary.SoI, pkorb.a, pkorb.e) - eps(Float64)
     end
 
-    # objectivefun(θ) = norm(departarrive_true_anomaly_objective(θ, pkorb, v̄rel, tₛₚ, c)[3])
-    function objectivefun(θ)
-        err, Δv̄ = departarrive_true_anomaly_objective(θ, pkorb, v̄rel, tₛₚ, c)[2:3]
-        return norm(Δv̄) * exp(1000*err)        # penalize mismatched direction
-    end
+    objectivefun(θ) = departarrive_objectivefun(θ, pkorb, v̄rel, tₛₚ, c)
 
     res = optimize(objectivefun, lb, ub, Brent())
-    θₚₖ = Optim.minimizer(res)
+    θₚₖ = Float64(Optim.minimizer(res))
 
     daorb, eccobj, Δv̄ = departarrive_true_anomaly_objective(θₚₖ, pkorb, v̄rel, tₛₚ, c)
     if eccobj > 1e-3
@@ -82,7 +83,7 @@ function departarrive_orbit(pkorb::Orbit, v̄rel::AbstractVector{<:Real}, tₛ�
     return daorb, eccobj, Δv̄
 end
 
-function quick_departarrive_orbit(pkorb::Orbit, v̄rel::AbstractVector{<:Real}, tₛₚ; out=true, tol=0.1, maxit=50)
+function quick_departarrive_orbit(pkorb::Orbit{<:CelestialBody}, v̄rel::AbstractVector{<:Real}, tₛₚ; out=true, tol=0.1, maxit=50)
     c = out ? 1 : -1
     μ = pkorb.primary.μ
     rₛₚ = pkorb.primary.SoI
@@ -143,5 +144,17 @@ function quick_departarrive_orbit(pkorb::Orbit, v̄rel::AbstractVector{<:Real}, 
     return Orbit(tₛₚ - Δt, r̄ₒ, v̄ₒ, pkorb.primary), Δv̄
 end
 
-departure_orbit(pkorb::Orbit, v̄rel::SVector{3}, tₛₚ; kwargs...) = departarrive_orbit(pkorb, v̄rel, tₛₚ; out=true,  kwargs...)
-arrival_orbit(pkorb::Orbit, v̄rel::SVector{3}, tₛₚ; kwargs...)   = departarrive_orbit(pkorb, v̄rel, tₛₚ; out=false, kwargs...)
+departure_orbit(pkorb::Orbit, v̄rel::SVector{3,Float64}, tₛₚ; kwargs...) = departarrive_orbit(pkorb, v̄rel, tₛₚ; out=true,  kwargs...)
+arrival_orbit(pkorb::Orbit, v̄rel::SVector{3,Float64}, tₛₚ; kwargs...)   = departarrive_orbit(pkorb, v̄rel, tₛₚ; out=false, kwargs...)
+
+function get_patch_state(orb::Orbit; out)
+    c = out ? 1 : -1 
+    rₛₚ = orb.primary.SoI
+    orbital_angle(rₛₚ, a, e)
+    θₛₚ = c * orbital_angle(rₛₚ, a, e)
+    return OrbitalState(true_to_time(θₛₚ, orb), orb)
+end
+
+get_departure_state(dorb::Orbit) = get_patch_state(dorb; out=true)
+get_arrival_state(aorb::Orbit) =   get_patch_state(aorb; out=false)
+    

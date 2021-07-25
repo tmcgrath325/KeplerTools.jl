@@ -1,23 +1,23 @@
 ### type definitions ###
 
-struct SpaceObject
+struct SpaceObject{P}
     name::AbstractString
-    orbit::Orbit
-    primary::CelestialObject
+    orbit::Orbit{P}
+    primary::P
 end
 
-struct CelestialBody <: CelestialObject
+struct CelestialBody{P} <: CelestialObject
     name::AbstractString
     eqradius::Float64
     μ::Float64
     SoI::Float64
     rotperiod::Float64
     rotinitial::Float64
-    orbit::Orbit
+    orbit::Orbit{P}
     primary::CelestialObject
     color::Tuple{Int, Int, Int}
-    satellite_bodies::Vector{CelestialBody}
-    satellite_objects::Vector{SpaceObject}
+    satellite_bodies::Vector{<:CelestialBody}
+    satellite_objects::Vector{<:SpaceObject}
 end
 
 struct Star <: CelestialObject
@@ -25,8 +25,8 @@ struct Star <: CelestialObject
     eqradius::Float64
     μ::Float64
     color::Tuple{Int, Int, Int}
-    satellite_bodies::Vector{CelestialBody}
-    satellite_objects::Vector{SpaceObject}
+    satellite_bodies::Vector{CelestialBody{Star}}
+    satellite_objects::Vector{SpaceObject{Star}}
 end
 
 ### alternate constructors ###
@@ -39,6 +39,16 @@ end
 
 set_soi(μ, μprim, a) = a *(μ/μprim)^(2/5)
 
+function add_to_primary!(bd::CelestialBody)
+    push!(bd.primary.satellite_bodies, bd)
+    sort!(bd.primary.satellite_bodies)
+end
+
+function add_to_primary!(ob::SpaceObject)
+    push!(ob.primary.satellite_objects, bd)
+    sort!(ob.primary.satellite_objects)
+end
+
 function CelestialBody(name::AbstractString, eqradius, μ, SoI, rotperiod, rotinitial, orbit::Orbit, color::Tuple{Int,Int,Int}=(255,255,255))
     bd = CelestialBody(name, eqradius, μ, SoI, rotperiod, rotinitial, orbit, orbit.primary, color, CelestialBody[], SpaceObject[])
     add_to_primary!(bd)
@@ -46,12 +56,12 @@ function CelestialBody(name::AbstractString, eqradius, μ, SoI, rotperiod, rotin
 end
 
 function CelestialBody(name::AbstractString, eqradius, μ, rotperiod, rotinitial, orbit::Orbit, color::Tuple{Int,Int,Int}=(255,255,255))
-    bd = CelestialBody(name, eqradius, μ, set_soi(μ, orbit.primary.μ, orbit.a), rotperiod, rotinitial, orbit, orbit.primary, color, CelestialBody[], SpaceObject[])
+    bd = CelestialBody(name, eqradius, μ, set_soi(μ, orbit.primary.μ, orbit.a), rotperiod, rotinitial, orbit, orbit.primary, color, CelestialBody{<:CelestialBody}[], SpaceObject{<:CelestialBody}[])
     add_to_primary!(bd)
     return bd
 end
 
-Star(name::AbstractString, eqradius, μ, color::Tuple{Int,Int,Int}=(255,255,255)) = Star(name, eqradius, μ, color, CelestialBody[], SpaceObject[])
+Star(name::AbstractString, eqradius, μ, color::Tuple{Int,Int,Int}=(255,255,255)) = Star(name, eqradius, μ, color, CelestialBody{Star}[], SpaceObject{Star}[])
 
 
 ### helper methods ###
@@ -122,15 +132,6 @@ function Base.isless(bd1::CelestialObject, bd2::CelestialObject)
     end
 end
 
-function add_to_primary!(bd::CelestialBody)
-    push!(bd.primary.satellite_bodies, bd)
-    sort!(bd.primary.satellite_bodies)
-end
-
-function add_to_primary!(ob::SpaceObject)
-    push!(ob.primary.satellite_objects, bd)
-    sort!(ob.primary.satellite_objects)
-end
 
 ### descriptive display ###
 

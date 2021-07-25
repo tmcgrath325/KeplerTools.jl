@@ -42,3 +42,9 @@ function draw_burn_arrow(brn::Burn; normalize=nothing, scale=nothing, color=(255
     )
     return [tail_trace, head_trace]
 end
+
+# TODO: Reference Direction line
+
+# TODO: angle displays
+
+# TODO: simple markers

@@ -15,13 +15,13 @@ standard_layout(bd::CelestialObject,
 
 
 standard_hoverlabel(color) = attr(bgcolor = "rgb$color",
-                                  font = attr(family = family="Courier New, monospace",
+                                  font = attr(family = "Courier New, monospace",
                                               size = 10,
                                   ),
                                   align="left",
 )
 
-function draw_orbit(orb::Orbit, angles::AbstractVector{<:Real}, starttime; color=(255,255,255), fadedcolor=fade_color(color), name="", time=KerbalTime)
+function draw_orbit(orb::Orbit, angles::AbstractVector{<:Real}, starttime; color=(255,255,255), fadedcolor=fade_color(color), name="", timedef=KerbalTime)
     pos_mat = fill(NaN, 3, length(angles))
     vel_mat = fill(NaN, 3, length(angles))
     times = fill(NaN, length(angles))
@@ -35,7 +35,7 @@ function draw_orbit(orb::Orbit, angles::AbstractVector{<:Real}, starttime; color
 
     cdata = [[norm(pos_mat[:,i])/1000,
               norm(vel_mat[:,i]),
-              seconds_to_datetime(times[i])...,
+              seconds_to_datetime(times[i], timedef)...,
               times[i],
               wrap_angle(angles[i]),] for i=1:length(angles)]
 
