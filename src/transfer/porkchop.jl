@@ -9,9 +9,11 @@ end
 
 function Porkchop(startorb::Orbit, endorb::Orbit, starttimes::AbstractVector{<:Real}, flighttimes::AbstractVector{<:Real}; tfer_fun = Transfer)
     Δv = fill(NaN, length(starttimes), length(flighttimes))
+    tferpath=path_to_body(startorb.primary, endorb.primary)
+    cmnparent=closest_common_parent(startorb, endorb)
     for (i,st) in enumerate(starttimes)
         for (j,ft) in enumerate(flighttimes)
-            Δv[i,j] = tfer_fun(startorb, endorb, st, st+ft).Δv
+            Δv[i,j] = tfer_fun(startorb, endorb, st, st+ft; transferpath=tferpath, commonparent=cmnparent).Δv
         end
     end
     return Porkchop(startorb, endorb, starttimes, flighttimes, Δv)
@@ -22,7 +24,7 @@ quickPorkchop(startorb::Orbit, endorb::Orbit, starttimes::AbstractVector{<:Real}
 
 Porkchop(startorb::Orbit, endorb::Orbit, stime1, stime2, ftime1, ftime2; npts=100, tfer_fun = Transfer
     ) = Porkchop(startorb, endorb, collect(range(stime1, stop=stime2, length=npts)), collect(range(ftime1, stop=ftime2, length=npts)); tfer_fun = tfer_fun)
-quickPorkchop(startorb::Orbit, endorb::Orbit, stime1, stime2, ftime1, ftime2; npts=100
+quickPorkchop(startorb::Orbit, endorb::Orbit, stime1, stime2, ftime1, ftime2; npts=250
     ) = Porkchop(startorb, endorb, stime1, stime2, ftime1, ftime2; npts=npts, tfer_fun = quickTransfer)
 
 ### descriptive display ###

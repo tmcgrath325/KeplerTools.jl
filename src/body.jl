@@ -68,10 +68,13 @@ Star(name::AbstractString, eqradius, μ, color::Tuple{Int,Int,Int}=(255,255,255)
 
 function collect_satellite_bodies(bd::CelestialObject)
     if isempty(bd.satellite_bodies)
-        return []
+        return CelestialBody[]
     else
-        gchildren = collect(Iterators.flatten([collect_satellite_bodies(st) for st in bd.satellite_bodies]))
-        return [bd.satellite_bodies..., gchildren...]
+        gchildren = CelestialBody[]
+        for st in bd.satellite_bodies
+            push!(gchildren, collect_satellite_bodies(st)...)
+        end
+        return CelestialBody[bd.satellite_bodies..., gchildren...]
     end
 end
 

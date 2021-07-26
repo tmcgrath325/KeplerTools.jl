@@ -14,9 +14,10 @@ end
 
 ### alternate constructors ###
 
-function Transfer(startorb::Orbit, endorb::Orbit, starttime, endtime; dorb_fun = departure_orbit, aorb_fun = arrival_orbit)
-    transferpath = path_to_body(startorb.primary, endorb.primary)
-    commonparent = closest_common_parent(startorb, endorb)
+function Transfer(startorb::Orbit, endorb::Orbit, starttime, endtime;
+                  transferpath=path_to_body(startorb.primary, endorb.primary), commonparent=closest_common_parent(startorb, endorb), 
+                  dorb_fun = departure_orbit, aorb_fun = arrival_orbit)
+    
     tidx = findfirst(x->x==commonparent, transferpath)
     
     # transfer
@@ -77,7 +78,8 @@ function Transfer(startorb::Orbit, endorb::Orbit, starttime, endtime; dorb_fun =
                     )
 end
 
-quickTransfer(startorb::Orbit, endorb::Orbit, starttime, endtime) = Transfer(startorb, endorb, starttime, endtime; dorb_fun=quick_departarrive_orbit, aorb_fun=quick_arrival_orbit)
+quickTransfer(startorb::Orbit, endorb::Orbit, starttime, endtime; kwargs...
+    ) = Transfer(startorb, endorb, starttime, endtime; dorb_fun=quick_departarrive_orbit, aorb_fun=quick_arrival_orbit, kwargs...)
 
 ### helper methods ###
 
