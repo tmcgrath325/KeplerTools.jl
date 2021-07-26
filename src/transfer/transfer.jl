@@ -90,20 +90,78 @@ end
 ejection_time(dorb::Orbit)  = patch_time(dorb,  1)
 insertion_time(aorb::Orbit) = patch_time(aorb, -1)
 
-function match_patch_times(tfer::Transfer)
-    time_mismatches = Float64[]
-    for dorb in tfer.ejection_orbits
-        t1 = dorb.epoch
-        t2 = ejection_time(dorb)
-        append!(time_mismatches(t2-t1))
+function patch_time_errors(tfer::Transfer)
+    up_time_mismatches   = Float64[]
+    down_time_mismatches = Float64[]
+    for (i,dorb) in enumerate(reverse(tfer.ejection_orbits))
+        if i==1
+            t1 = tfer.departure_time
+            t2 = ejection_time(dorb)
+            prepend!(up_time_mismatches, t2-t1)
+        else
+            t1 = tfer.ejection_orbits[end-i+2].epoch
+            t2 = ejection_time(dorb)
+            prepend!(up_time_mismatches, t2-t1 ) # - up_time_mismatches[1])
+        end
     end
-    for aorb in tfer.insertion_orbits
-        t1=insertion_time(aorb)
-        t2 = aorb.epoch
-        append!(time_mismatches, t2-t1)
+    for (j,aorb) in enumerate(tfer.insertion_orbits)
+        if j==1
+            t1 = tfer.arrival_time
+            t2 = insertion_time(aorb)
+            append!(down_time_mismatches, t2-t1)
+        else
+            t1 = tfer.insertion_orbits[j-1].epoch
+            t2 = insertion_time(aorb)
+            append!(down_time_mismatches, t2-t1 ) # - down_time_mismatches[j-1])
+        end
     end
-    return time_mismatches
+    return up_time_mismatches, down_time_mismatches
 end
+
+# function optimize_patch_times(startorb, endorb, stime, etime)
+#     function objectivefun(stet) 
+#         up_errs, down_errs = patch_time_errors(
+#                                 Transfer(startorb,
+#                                 endorb,
+#                                 stet[1],
+#                                 stet[2])
+#         )
+#         @show up_errs[end], down_errs[1]
+#         return abs(up_errs[end]) + abs(down_errs[1])
+#     end
+#     res = optimize(objectivefun, [stime, etime], LBFGS())
+#     (stime, etime) = Optim.minimizer(res)
+#     @show Optim.minimum(res)
+#     return Transfer(startorb, endorb, stime, etime)
+# end
+# optimize_patch_times(tfer::Transfer
+#     ) = optimize_patch_times(tfer.startorbit, tfer.endorbit, tfer.departure_time, tfer.arrival_time)
+
+
+function match_transfer_patch_times(startorb, endorb, stime, etime; atol=1e-6, maxit=100)
+    err = 1+atol
+    it=0
+    tfer = quickTransfer(startorb, endorb, stime, etime)
+    up_errs, down_errs = patch_time_errors(tfer)
+    tup_err = up_errs[end]
+    tdown_err = down_errs[1]
+    err = abs(tup_err) + abs(tdown_err)
+    while err>atol && it<maxit
+        it+=1
+        stime = stime + tup_err
+        etime = etime + tdown_err
+
+        tfer = quickTransfer(startorb, endorb, stime, etime)
+        up_errs, down_errs = patch_time_errors(tfer)
+        tup_err = up_errs[end]
+        tdown_err = down_errs[1]
+        err = abs(tup_err) + abs(tdown_err)
+        @show it, up_errs, down_errs
+    end
+    return tfer
+end
+match_transfer_patch_times(tfer::Transfer
+    ) = match_transfer_patch_times(tfer.startorbit, tfer.endorbit, tfer.departure_time, tfer.arrival_time)
 
 ### descriptive display ###
 
