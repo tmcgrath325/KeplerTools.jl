@@ -10,13 +10,11 @@ function departarrive_eccentricity_objective(e, a, Ω, i, r̄ₒ, rₛₚ, μ, v
     return 1-dot(v̄ₛₚ./norm(v̄ₛₚ), v̄rel./norm(v̄rel)), ω
 end
 
-function departarrive_true_anomaly_objective(θ, pkorb::Orbit{<:CelestialBody}, v̄rel::AbstractVector{<:Real}, tₛₚ, c)
+function departarrive_true_anomaly(r̄ₒ::AbstractVector{<:Real}, prim::Union{CelestialBody,Star}, v̄rel::AbstractVector{<:Real}, tₛₚ, c)
     # optimize the eccentricity of the departure/arrival orbit against the departure/arrival vector
-    μ = pkorb.primary.μ
-
-    r̄ₒ = orbital_position(θ, pkorb)
+    μ = prim.μ
     rₒ = norm(r̄ₒ)
-    rₛₚ = pkorb.primary.SoI
+    rₛₚ = prim.SoI
     ĥ = normalize(cross(r̄ₒ,v̄rel))
     n̂ = normalize(cross(@SVector([0.,0.,1.]), ĥ))
 
@@ -38,25 +36,34 @@ function departarrive_true_anomaly_objective(θ, pkorb::Orbit{<:CelestialBody}, 
     e = Optim.minimizer(res)
 
     eccobj, ω = departarrive_eccentricity_objective(e, a, Ω, i, r̄ₒ, rₛₚ, μ, v̄rel, c)
+
     θₒ = c * orbital_angle(rₒ, a, e)
     θₛₚ = c * orbital_angle(rₛₚ, a, e)
-    Mₒ = true_to_mean(θₒ, e)
     T = period(a,μ)
+    Mₒ = true_to_mean(θₒ, e)
     Δt = true_to_time(θₛₚ, e, T) - true_to_time(θₒ, e, T)
-    tₒ = true_to_time(θ, pkorb, tₛₚ - Δt - pkorb.period/2)  # ensure `pkorb` and `daorb` are continuous
-    # tₒ = tₛₚ - Δt                                           # ensure `tₛₚ` is matched exactly
-    
-    daorb = Orbit(a,e,i,Ω,ω,Mₒ,tₒ,pkorb.primary)
+    tₒ = tₛₚ - Δt
 
-    # get the Δv at the burn for this eccentricity
-    v̄ₒ = orbital_velocity(θₒ, daorb)
+    return Orbit(a,e,i,Ω,ω,Mₒ,tₒ,prim), eccobj, 0.
+end
+
+function departarrive_true_anomaly(θ, pkorb::Orbit{<:CelestialBody}, v̄rel::AbstractVector{<:Real}, tₛₚ, c)
+    r̄ₒ = orbital_position(θ, pkorb)
+    daorb, eccobj = departarrive_true_anomaly(r̄ₒ, pkorb.primary, v̄rel::AbstractVector{<:Real}, tₛₚ, c)[1:2]
+
+    a, e, i, Ω, ω, Mₒ = daorb.a, daorb.e, daorb.i, daorb.Ω, daorb.ω, daorb.Mo
+
+    tₒ = true_to_time(θ, pkorb, daorb.epoch - pkorb.period/2)
+
+    v̄ₒ = time_orbital_velocity(daorb.epoch, daorb)
     v̄ₚₖ = orbital_velocity(θ, pkorb)
     Δv̄ = v̄ₒ .- v̄ₚₖ
-    return daorb, eccobj, Δv̄
+
+    return Orbit(a,e,i,Ω,ω,Mₒ,tₒ,pkorb.primary), eccobj, Δv̄
 end
 
 function departarrive_objectivefun(θ, pkorb, v̄rel, tₛₚ, c)
-    err, Δv̄ = departarrive_true_anomaly_objective(θ, pkorb, v̄rel, tₛₚ, c)[2:3]
+    err, Δv̄ = departarrive_true_anomaly(θ, pkorb, v̄rel, tₛₚ, c)[2:3]
     return norm(Δv̄) * exp(1000*err)        # penalize mismatched direction
 end
 
@@ -67,7 +74,8 @@ function departarrive_orbit(pkorb::Orbit{<:CelestialBody}, v̄rel::AbstractVecto
         lb = -2π
         ub = 2π
     else                    # hyperbolic case: true anomalies occuring within the SoI
-        ub = -lb = orbital_angle(pkorb.primary.SoI, pkorb.a, pkorb.e) - eps(Float64)
+        ub = orbital_angle(pkorb.primary.SoI, pkorb.a, pkorb.e) - eps(Float64)
+        lb = -ub
     end
 
     objectivefun(θ) = departarrive_objectivefun(θ, pkorb, v̄rel, tₛₚ, c)
@@ -75,11 +83,15 @@ function departarrive_orbit(pkorb::Orbit{<:CelestialBody}, v̄rel::AbstractVecto
     res = optimize(objectivefun, lb, ub, Brent())
     θₚₖ = Optim.minimizer(res)
 
-    daorb, eccobj, Δv̄ = departarrive_true_anomaly_objective(θₚₖ, pkorb, v̄rel, tₛₚ, c)
+    daorb, eccobj, Δv̄ = departarrive_true_anomaly(θₚₖ, pkorb, v̄rel, tₛₚ, c)
     if eccobj > 1e-3
         @warn "departure/arrival velocity mismatch from target direction: $(pkorb.primary.name), $eccobj"
     end
     return daorb, eccobj, Δv̄
+end
+
+function departarrive_orbit(r̄ₒ::AbstractVector{<:Real}, tₒ, prim::Union{CelestialBody,Star}, v̄rel::AbstractVector{<:Real}, tₛₚ; out=true)
+    # return daorb, 0, Δv̄
 end
 
 function quick_departarrive_orbit(pkorb::Orbit{<:CelestialBody}, v̄rel::AbstractVector{<:Real}, tₛₚ; out=true, tol=0.1, maxit=50)
@@ -151,14 +163,27 @@ arrival_orbit(pkorb::Orbit{<:CelestialBody}, v̄rel::AbstractVector{<:Real}, t�
 quick_departure_orbit(pkorb::Orbit{<:CelestialBody}, v̄rel::AbstractVector{<:Real}, tₛₚ; kwargs...) = quick_departarrive_orbit(pkorb, v̄rel, tₛₚ; out=true, kwargs...)
 quick_arrival_orbit(pkorb::Orbit{<:CelestialBody}, v̄rel::AbstractVector{<:Real}, tₛₚ; kwargs...)   = quick_departarrive_orbit(pkorb, v̄rel, tₛₚ; out=false, kwargs...)
 
-function get_patch_state(orb::Orbit; out)
-    c = out ? 1 : -1 
-    rₛₚ = orb.primary.SoI
-    orbital_angle(rₛₚ, a, e)
-    θₛₚ = c * orbital_angle(rₛₚ, a, e)
-    return OrbitalState(true_to_time(θₛₚ, orb), orb)
-end
 
-get_departure_state(dorb::Orbit) = get_patch_state(dorb; out=true)
-get_arrival_state(aorb::Orbit) =   get_patch_state(aorb; out=false)
+# true anomaly/time at the SoI
+patch_angle(daorb::Orbit, c) = c*orbital_angle(daorb.primary.SoI, daorb)
+patch_time(daorb::Orbit, c) = true_to_time(patch_angle(daorb, c), daorb)
+
+ejection_angle(dorb::Orbit)  = patch_angle(dorb,  1)
+ejection_time(dorb::Orbit)   = patch_time(dorb,  1)
+
+insertion_angle(aorb::Orbit) = patch_angle(aorb, -1)
+insertion_time(aorb::Orbit)  = patch_time(aorb, -1)
+
+patch_position(daorb::Orbit, c) = orbital_position(patch_angle(daorb, c), daorb)
+patch_velocity(daorb::Orbit, c) = orbital_velocity(patch_angle(daorb, c), daorb)
+patch_state_Vector(daorb::Orbit, c) = state_vector(patch_angle(daorb, c), daorb)
+
+ejection_position(dorb::Orbit) = orbital_position(ejection_angle(dorb), dorb)
+ejection_velocity(dorb::Orbit) = orbital_velocity(ejection_angle(dorb), dorb)
+ejection_state_Vector(dorb::Orbit) = state_vector(ejection_angle(dorb), dorb)
+
+insertion_position(aorb::Orbit) = orbital_position(insertion_angle(aorb), aorb)
+insertion_velocity(aorb::Orbit) = orbital_velocity(insertion_angle(aorb), aorb)
+insertion_state_Vector(aorb::Orbit) = state_vector(insertion_angle(aorb), aorb)
+
     

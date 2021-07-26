@@ -1,4 +1,4 @@
-function p_lambert(r̄ₛ::AbstractVector{<:Real}, r̄ₑ::AbstractVector{<:Real}, Δt, μ; dir=1, tol=1e-12, maxit=200)
+function p_lambert_velocity(r̄ₛ::AbstractVector{<:Real}, r̄ₑ::AbstractVector{<:Real}, Δt, μ; dir=1, tol=1e-12, maxit=200)
     rₛ, rₑ = norm(r̄ₛ), norm(r̄ₑ)
 
     # true anomaly change for the transfer
@@ -62,9 +62,9 @@ function p_lambert(r̄ₛ::AbstractVector{<:Real}, r̄ₑ::AbstractVector{<:Real
     return v̄ₛ
 end
 
-function p_lambert(sorb::Orbit, eorb::Orbit, stime, etime; kwargs...) 
-    r̄ₛ, r̄ₑ = time_state_vector(stime,sorb)[1], time_state_vector(etime,eorb)[1]
+function p_lambert(sorb::Orbit, eorb::Orbit, stime, etime, s_patch_position=@SVector(zeros(3)), e_patch_position=@SVector(zeros(3)); kwargs...) 
+    r̄ₛ, r̄ₑ = time_orbital_position(stime,sorb) + s_patch_position, time_orbital_position(etime,eorb) + e_patch_position
     d = sorb.i<π/2 ? 1 : -1     # choose short/long way based on clockwise sense of `sorb`
-    v̄ₛ = p_lambert(r̄ₛ, r̄ₑ, etime-stime, sorb.primary.μ; dir=d, kwargs...)
+    v̄ₛ = p_lambert_velocity(r̄ₛ, r̄ₑ, etime-stime, sorb.primary.μ; dir=d, kwargs...)
     return Orbit(stime, r̄ₛ, v̄ₛ, sorb.primary)
 end

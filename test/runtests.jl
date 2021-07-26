@@ -167,7 +167,7 @@ end
     Δt = 207*24*60*60
     r̄ₛ = [0.473265, -0.899215, 0.] # .* au
     r̄ₑ = [0.066842, 1.561256, 0.030948] # .* au
-    v̄ = p_lambert(r̄ₛ, r̄ₑ, Δt, μ)
+    v̄ = KT.p_lambert_velocity(r̄ₛ, r̄ₑ, Δt, μ)
     @test isapprox(v̄, [0.000000193828, 0.000000101824, 0.00000000861759]; rtol=1e-3)
 
     # transfer from Kerbin to Duna, from alexmoon's app: https://alexmoon.github.io/ksp/
@@ -196,7 +196,7 @@ end
         @test isapprox(time_StateVector(starttime, orb2), startstate)
         @test isapprox(time_StateVector(endtime, orb2), endstate)
         d = orb.i<π/2 ? 1 : -1
-        @test isapprox(p_lambert(startstate.position, endstate.position, endtime-starttime, μ; dir=d), startstate.velocity, rtol=1e-6)
+        @test isapprox(KT.p_lambert_velocity(startstate.position, endstate.position, endtime-starttime, μ; dir=d), startstate.velocity, rtol=1e-6)
     end
 
     # generate random hyperbolic orbits for testing, and recover them with the Lambert solver
@@ -221,7 +221,7 @@ end
         @test isapprox(time_StateVector(starttime, orb2), startstate)
         @test isapprox(time_StateVector(endtime, orb2), endstate)
         d = orb.i<π/2 ? 1 : -1
-        @test isapprox(p_lambert(startstate.position, endstate.position, endtime-starttime, μ; dir=d), startstate.velocity, rtol=1e-6)
+        @test isapprox(KT.p_lambert_velocity(startstate.position, endstate.position, endtime-starttime, μ; dir=d), startstate.velocity, rtol=1e-6)
     end
 end
 
