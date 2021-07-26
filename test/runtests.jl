@@ -238,19 +238,14 @@ end
 
     # get quick departure orbit (valid for circular parking orbits)
     dorb, Δv̄ = quick_departarrive_orbit(pkorb, v̄rel, starttime)
-    @test time_StateVector(KT.ejection_time(dorb), dorb).velocity ≈ v̄rel
+    @test isapprox(time_StateVector(KT.ejection_time(dorb), dorb).velocity, v̄rel; rtol=1e-6)
     # TODO: match position of start orbit 
     # @test StateVector(dorb.epoch, dorb).position ≈ StateVector(dorb.epoch, pkorb).position
 
     # recover (something similar to) the quick departure orbit from the optimizer
     θₒ = time_to_true(dorb.epoch, pkorb)
     d2orb, eccobj, Δv̄2 = departarrive_orbit(pkorb, v̄rel, starttime)
-    @show dorb, d2orb
-    @test isapprox(d2orb.a, dorb.a; rtol=0.01, atol=0.01)
-    @test isapprox(d2orb.e, dorb.e; rtol=0.01, atol=0.01)
-    # @test KT.isapproxangle(d2orb.i, dorb.i ; rtol=0.01, atol=0.01)
-    # @test KT.isapproxangle(d2orb.Ω, dorb.Ω; rtol=0.01, atol=0.01)
-    # @test KT.isapproxangle(d2orb.ω, dorb.ω; rtol=0.01, atol=0.01)
+    @test isapprox(d2orb, dorb; atol=0.01, rtol=0.01)
 
 end
 

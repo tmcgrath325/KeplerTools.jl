@@ -1,13 +1,13 @@
 function basis_rotation(Ω, i, ω)
     # Ω, ω, i = Float64(Ω), Float64(ω), Float64(i)
-    # R₁ = [cos(Ω)  sin(Ω)  0.;    # rotate around z-axis to match Ω
-    #      -sin(Ω)  cos(Ω)  0.;
+    # R₁ = [cos(Ω) -sin(Ω)  0.;    # rotate around z-axis to match Ω
+    #       sin(Ω)  cos(Ω)  0.;
     #       0.      0.      1.]
     # R₂ = [1.      0.      0.;    # rotate around x-axis to match i
-    #       0.  cos(i)  sin(i);
-    #       0. -sin(i)  cos(i)]
-    # R₃ = [cos(ω)  sin(ω)  0.;    # rotate around z-axis to match ω
-    #      -sin(ω)  cos(ω)  0.;
+    #       0.  cos(i) -sin(i);
+    #       0.  sin(i)  cos(i)]
+    # R₃ = [cos(ω) -sin(ω)  0.;    # rotate around z-axis to match ω
+    #       sin(ω)  cos(ω)  0.;
     #       0.      0.      1.]
     # return R₃*R₂*R₁
     return RotZXZ(Ω, i, ω)

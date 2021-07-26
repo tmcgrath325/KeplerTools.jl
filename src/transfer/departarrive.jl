@@ -3,7 +3,7 @@ function departarrive_eccentricity_objective(e, a, Ω, i, r̄ₒ, rₛₚ, μ, v
     rₒ = norm(r̄ₒ)
     θₒ = c * orbital_angle(rₒ, a, e)
     θₛₚ = c * orbital_angle(rₛₚ, a, e)
-    ω = wrap_angle(angle_in_plane(r̄ₒ, basis_rotation(Ω, 0., i))-θₒ)
+    ω = wrap_angle(angle_in_plane(r̄ₒ, basis_rotation(Ω, i, 0.))-θₒ)
 
     v̄ₛₚ = orbital_velocity(θₛₚ,a,e,μ,i,Ω,ω)
 
@@ -109,10 +109,22 @@ function quick_departarrive_orbit(pkorb::Orbit{<:CelestialBody}, v̄rel::Abstrac
         r̄ₒ = @SVector([rₒ, 0, 0])
         v̄ₒ = @SVector([0, vₒ, 0])
         v̄relplane = inertial_to_perifocal_bases(v̄rel, pkorb)
+        # R = align_vectors(v̄ₛₚ, v̄relplane)               # align velocity at SoI with input direction,
+        #                                                # valid only for undefined parking orbit
+        ψ₁ = atan(v̄relplane[3], √abs(vₛₚ^2 - v̄ₛₚ[1]^2 - v̄relplane[3]^2))
+        # R₁ = MRP([1        0        0;                   # rotate around x-axis to match i
+        #           0  cos(ψ₁) -sin(ψ₁);
+        #           0  sin(ψ₁)  cos(ψ₁)])
+        R₁ = MRP((1.,0.,0.,0.,cos(ψ₁),sin(ψ₁),0.,-sin(ψ₁),cos(ψ₁)))
+        R1v̄ₛₚ = R₁*v̄ₛₚ
+        ψ₂ = atan(v̄relplane[2], v̄relplane[1]) - atan(R1v̄ₛₚ[2], R1v̄ₛₚ[1])
+        # R₂ = MRP([cos(ψ₂) -sin(ψ₂)  0;                   # rotate around z-axis to match ω
+        #           sin(ψ₂)  cos(ψ₂)  0;
+        #           0        0        1]))
+        R₂ = MRP((cos(ψ₂),sin(ψ₂),0.,-sin(ψ₂),cos(ψ₂),0.,0.,0.,1.))
 
-        R = align_vectors(v̄ₛₚ, v̄relplane)               # align velocity at SoI with input direction
-        v̄ₒ = perifocal_to_inertial_bases(R*v̄ₒ, pkorb)
-        r̄ₒ = perifocal_to_inertial_bases(R*r̄ₒ, pkorb)
+        v̄ₒ = perifocal_to_inertial_bases(R₂*R₁*v̄ₒ, pkorb)
+        r̄ₒ = perifocal_to_inertial_bases(R₂*R₁*r̄ₒ, pkorb)
 
         δθ = angle_in_plane(r̄ₒ, pkorb)
         r̄ₒpkorb = state_vector(δθ, pkorb)[1]
