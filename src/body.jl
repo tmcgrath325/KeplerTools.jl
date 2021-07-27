@@ -1,11 +1,18 @@
 ### type definitions ###
 
+"""
+A space object considered to have negligible mass compared to the body around which it orbits
+(e.g. a spacecraft or an asteroid).
+"""
 struct SpaceObject{P}
     name::AbstractString
     orbit::Orbit{P}
     primary::P
 end
 
+"""
+A celestial body (e.g. a planet or moon) that is in orbit around a larger body.
+"""
 struct CelestialBody{P} <: CelestialObject
     name::AbstractString
     eqradius::Float64
@@ -20,6 +27,9 @@ struct CelestialBody{P} <: CelestialObject
     satellite_objects::Vector{<:SpaceObject}
 end
 
+"""
+A star that is not in orbit around a larger body. Serves as the root of a tree defining a solar system.
+"""
 struct Star <: CelestialObject
     name::AbstractString
     eqradius::Float64
@@ -37,8 +47,17 @@ end
 #     return bd
 # end
 
+"""
+    soi = (μ, μprim, a)
+
+Computes the sphere of influence of a body with semimajor axis `a` and gravity parameter `μ` in orbit around a larger body
+with gravity parameter `μprim`.
+"""
 set_soi(μ, μprim, a) = a *(μ/μprim)^(2/5)
 
+"""
+Adds a `CelestialBody` or `SpaceObject` to the lists of satellites around its primary body.
+"""
 function add_to_primary!(bd::CelestialBody)
     push!(bd.primary.satellite_bodies, bd)
     sort!(bd.primary.satellite_bodies)
@@ -49,6 +68,9 @@ function add_to_primary!(ob::SpaceObject)
     sort!(ob.primary.satellite_objects)
 end
 
+"""
+Creates a `CelestialBody` and adds it to the lists of satellites around its primary body.
+"""
 function CelestialBody(name::AbstractString, eqradius, μ, SoI, rotperiod, rotinitial, orbit::Orbit, color::Tuple{Int,Int,Int}=(255,255,255))
     bd = CelestialBody(name, eqradius, μ, SoI, rotperiod, rotinitial, orbit, orbit.primary, color, CelestialBody[], SpaceObject[])
     add_to_primary!(bd)
@@ -66,6 +88,11 @@ Star(name::AbstractString, eqradius, μ, color::Tuple{Int,Int,Int}=(255,255,255)
 
 ### helper methods ###
 
+"""
+    sats = collect_satellite_bodies(bd)
+
+Collects all planets or moons that are contained within the sphere of influence of `bd`.
+"""
 function collect_satellite_bodies(bd::CelestialObject)
     if isempty(bd.satellite_bodies)
         return CelestialBody[]
@@ -78,6 +105,11 @@ function collect_satellite_bodies(bd::CelestialObject)
     end
 end
 
+"""
+    sats = collect_satellite_bodies(bd)
+
+Collects all space objects that are contained within the sphere of influence of `bd`.
+"""
 function collect_satellite_objects(bd::CelestialObject)
     children = collect_satellite_bodies(bd)
     sat_objects = copy(bd.satellite_objects)
@@ -87,6 +119,11 @@ function collect_satellite_objects(bd::CelestialObject)
     return sat_objects
 end
 
+"""
+    parent = closest_common_parent(bd1, bd2)
+
+Returns the `CelestialObject` corresponding to the smallest system to which both `bd1` and `bd2` belong.
+"""
 function closest_common_parent(bd1::Union{CelestialObject,SpaceObject}, bd2::Union{CelestialObject,SpaceObject})
     if bd1 == bd2 || bd2 ∈ collect_satellite_bodies(bd1)
         return bd1
@@ -103,6 +140,12 @@ end
 
 closest_common_parent(orb1::Orbit, orb2::Orbit) = closest_common_parent(orb1.primary, orb2.primary)
 
+"""
+    path = path_to_parent(bd, parent)
+
+Returns a vector of `CelestialObject`s traversed in the solar system tree to arrive at `parent`
+starting from `bd`. `parent` is assumed to be at a higher level than `bd`
+"""
 function path_to_parent(bd::Union{CelestialObject,SpaceObject}, parent::CelestialObject)
     if bd == parent return [bd] end
     bodies = Union{CelestialObject,SpaceObject}[bd]
@@ -117,6 +160,12 @@ function path_to_parent(bd::Union{CelestialObject,SpaceObject}, parent::Celestia
     return
 end
 
+"""
+    path = path_to_parent(startbd, endbd)
+
+Returns a vector of `CelestialObject`s traversed in the solar system tree to arrive at `endbd`
+starting from `startbd`.
+"""
 function path_to_body(startbd::Union{CelestialObject,SpaceObject}, endbd::Union{CelestialObject,SpaceObject})
     commonparent = closest_common_parent(startbd, endbd)
     pathup = path_to_parent(startbd, commonparent)

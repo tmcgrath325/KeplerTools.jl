@@ -16,9 +16,9 @@ export basis_matrix, basis_matrix!
 export angle_in_plane
 
 export p_lambert
-export departarrive_orbit, quick_departarrive_orbit
-export Transfer, quickTransfer
-export Porkchop, quickPorkchop
+export departarrive_orbit, fast_departarrive_orbit
+export Transfer, fastTransfer
+export Porkchop, fastPorkchop
 
 export draw_orbit, draw_central_body, draw_orbiting_body, draw_system
 export draw_burn_arrow

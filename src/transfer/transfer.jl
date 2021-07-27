@@ -5,26 +5,30 @@ struct Transfer
     endorbit::Orbit
     departure_time::Float64
     arrival_time::Float64
+    patch_positions::Vector{SVector{3,Float64}}
     transfer_orbit::Orbit
     ejection_orbits::Vector{Orbit}
     insertion_orbits::Vector{Orbit}
     burns::Vector{Burn}
     Δv::Float64
-    # patch_positions::Vector{SVector{3,Float64}}
 end
 
 ### alternate constructors ###
 
-function Transfer(startorb::Orbit, endorb::Orbit, starttime, endtime;
+function Transfer(startorb::Orbit, endorb::Orbit, starttime, endtime,
+                  patch_posns::Union{Nothing,AbstractVector{<:AbstractVector{<:Real}}} = nothing;
                   transferpath=path_to_body(startorb.primary, endorb.primary), commonparent=closest_common_parent(startorb, endorb), 
-                  dorb_fun = departure_orbit, aorb_fun = arrival_orbit,
-                  patch_positions::AbstractVector{<:AbstractVector{<:Real}}=fill(@SVector(zeros(3)), length(transferpath)-1))
+                  dorb_fun = departure_orbit, aorb_fun = arrival_orbit)
+    #
+    if isnothing(patch_posns)
+        patch_posns = fill(@SVector(zeros(3)), length(transferpath)-1)
+    end
     tidx = findfirst(x->x==commonparent, transferpath)
     
     # transfer
     sorb = tidx == 1 ? startorb : transferpath[tidx-1].orbit
     eorb = tidx == length(transferpath) ? endorb : transferpath[tidx+1].orbit
-    torb = p_lambert(sorb, eorb, starttime, endtime, patch_positions[tidx-1], patch_positions[tidx])
+    torb = p_lambert(sorb, eorb, starttime, endtime, patch_posns[tidx-1], patch_posns[tidx])
     v̄dep = time_orbital_velocity(starttime,torb) .- time_orbital_velocity(starttime,sorb)
     v̄arr = time_orbital_velocity(endtime,  eorb) .- time_orbital_velocity(endtime,  torb)
     
@@ -36,12 +40,12 @@ function Transfer(startorb::Orbit, endorb::Orbit, starttime, endtime;
         sorb = didx == 1 ? startorb : transferpath[didx-1].orbit
         dorb = dorb_fun(sorb, v̄dep, stime)[1]
         if didx>1
-            if norm(patch_positions[didx-1])>0
-                dorb = departarrive_true_anomaly(time_orbital_position(dorb.epoch, dorb) + patch_positions[didx-1], 
+            if norm(patch_posns[didx-1])>0
+                dorb = departarrive_true_anomaly(time_orbital_position(dorb.epoch, dorb) + patch_posns[didx-1], 
                                                  dorb.primary, 
                                                  v̄dep,
                                                  stime,
-                                                 1)
+                                                 1)[1]
             end
         end
         push!(dorbs, dorb)
@@ -57,13 +61,13 @@ function Transfer(startorb::Orbit, endorb::Orbit, starttime, endtime;
     while aidx < length(transferpath)+1
         eorb = aidx == length(transferpath) ? endorb : transferpath[aidx+1].orbit
         aorb = aorb_fun(eorb, v̄arr, etime)[1]
-        if aidx<=length(patch_positions)
-            if norm(patch_positions[aidx])>0
-                aorb = departarrive_true_anomaly(time_orbital_position(aorb.epoch, aorb) + patch_positions[aidx], 
+        if aidx<=length(patch_posns)
+            if norm(patch_posns[aidx])>0
+                aorb = departarrive_true_anomaly(time_orbital_position(aorb.epoch, aorb) + patch_posns[aidx], 
                                                  aorb.primary, 
                                                  v̄arr,
                                                  etime,
-                                                 -1)
+                                                 -1)[1]
             end
         end
         push!(aorbs, aorb)
@@ -89,16 +93,19 @@ function Transfer(startorb::Orbit, endorb::Orbit, starttime, endtime;
                     endorb,
                     starttime,
                     endtime,
+                    patch_posns,
                     torb,
                     reverse(dorbs),
                     aorbs,
                     burns,
-                    Δv,
-                    )
+                    Δv)
 end
 
-quickTransfer(startorb::Orbit, endorb::Orbit, starttime, endtime; kwargs...
-    ) = Transfer(startorb, endorb, starttime, endtime; dorb_fun=quick_departarrive_orbit, aorb_fun=quick_arrival_orbit, kwargs...)
+Transfer(tfer::Transfer, patch_posns::Union{Nothing,AbstractVector{<:AbstractVector{<:Real}}}=nothing; kwargs...
+    ) = Transfer(tfer.startorbit, tfer.endorbit, tfer.departure_time, tfer.arrival_time, patch_posns; kwargs...)
+
+fastTransfer(startorb::Orbit, endorb::Orbit, starttime, endtime, patch_posns::Union{Nothing,AbstractVector{<:AbstractVector{<:Real}}} = nothing; kwargs...
+    ) = Transfer(startorb, endorb, starttime, endtime, patch_posns; dorb_fun=fast_departarrive_orbit, aorb_fun=fast_arrival_orbit, kwargs...)
 
 ### helper methods ###
 
@@ -148,10 +155,10 @@ end
 #     ) = optimize_patch_times(tfer.startorbit, tfer.endorbit, tfer.departure_time, tfer.arrival_time)
 
 
-function match_transfer_patch_times(startorb, endorb, stime, etime; atol=1e-6, maxit=100)
+function match_transfer_patch_times(startorb, endorb, stime, etime, patch_posns; atol=1e-6, maxit=100)
     err = 1+atol
     it=0
-    tfer = quickTransfer(startorb, endorb, stime, etime)
+    tfer = Transfer(startorb, endorb, stime, etime, patch_posns)
     up_errs, down_errs = patch_time_errors(tfer)
     tup_err = up_errs[end]
     tdown_err = down_errs[1]
@@ -161,21 +168,20 @@ function match_transfer_patch_times(startorb, endorb, stime, etime; atol=1e-6, m
         stime = stime + tup_err
         etime = etime + tdown_err
 
-        tfer = quickTransfer(startorb, endorb, stime, etime)
+        tfer = Transfer(startorb, endorb, stime, etime, patch_posns)
         up_errs, down_errs = patch_time_errors(tfer)
         tup_err = up_errs[end]
         tdown_err = down_errs[1]
         err = abs(tup_err) + abs(tdown_err)
-        @show it, up_errs, down_errs
     end
     return tfer
 end
 match_transfer_patch_times(tfer::Transfer
-    ) = match_transfer_patch_times(tfer.startorbit, tfer.endorbit, tfer.departure_time, tfer.arrival_time)
+    ) = match_transfer_patch_times(tfer.startorbit, tfer.endorbit, tfer.departure_time, tfer.arrival_time, tfer.patch_positions)
 
 # ensure continuous position across SoI patches
 
-patch_positions(tfer::Transfer
+new_patch_positions(tfer::Transfer
     ) = vcat(
             [ejection_position(dorb) for dorb in tfer.ejection_orbits], 
             [insertion_position(aorb) for aorb in tfer.insertion_orbits]
@@ -198,7 +204,7 @@ function patch_position_errors(tfer::Transfer)
         if j==1
             r̄1 = time_orbital_position(tfer.arrival_time, tfer.transfer_orbit)
         else
-            r̄1 = time_orbital_position(tfer.insertion_orbits[i-1].epoch, tfer.insertion_orbits[i-1])
+            r̄1 = time_orbital_position(tfer.insertion_orbits[j-1].epoch, tfer.insertion_orbits[j-1])
         end
         r̄2 = insertion_position(aorb) + time_orbital_position(insertion_time(aorb), aorb.primary.orbit)
         append!(down_time_distances, r̄2.-r̄1)
@@ -206,6 +212,18 @@ function patch_position_errors(tfer::Transfer)
     return up_time_distances, down_time_distances
 end
 
+function match_patch_positions(tfer; atol=1., maxit=100)
+    err = 1+atol
+    it = 0
+    while err > atol && it<maxit
+        it += 1
+        tfer = match_transfer_patch_times(tfer)
+        tfer = Transfer(tfer, new_patch_positions(tfer))
+        err = sum(norm, patch_position_errors(tfer))
+        @show patch_position_errors(tfer)
+        @show it, err
+    end
+end
 
 ### descriptive display ###
 

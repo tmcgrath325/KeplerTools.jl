@@ -1,4 +1,4 @@
-function draw_wireframe_sphere(pos, r; npts=11, color=(255,255,255), name=nothing)
+function draw_wireframe_sphere(pos, r; npts=11, color=(255,255,255), name=nothing, opacity=1.)
     ϕs = range(0, stop=2π, length=npts)
     θs = range(-π/2, stop=π/2, length=npts)
     # vertical
@@ -17,6 +17,7 @@ function draw_wireframe_sphere(pos, r; npts=11, color=(255,255,255), name=nothin
         push!(traces, scatter3d(;x=v_xs[j], y=v_ys[j], z=v_zs[j], 
                                  mode="lines",
                                  line=attr(color="rgb$color"),
+                                 opacity=opacity,
                                  showlegend=false, showscale=false, name=name,
                                  hovertemplate=name, hoverinfo=hover,
                                )
@@ -26,6 +27,7 @@ function draw_wireframe_sphere(pos, r; npts=11, color=(255,255,255), name=nothin
         push!(traces, scatter3d(;x=h_xs[i], y=h_ys[i], z=h_zs[i], 
                                  mode="lines",
                                  line=attr(color="rgb$color"),
+                                 opacity=opacity,
                                  showlegend=false, showscale=false, name=name,
                                  hovertemplate=name, hoverinfo=hover,
                                )
@@ -39,3 +41,6 @@ draw_central_body(bd::Union{CelestialBody,Star}; kwargs...
 
 draw_orbiting_body(bd::CelestialBody, t; kwargs...
     ) = draw_wireframe_sphere(time_orbital_position(t, bd.orbit), bd.eqradius; color=bd.color, name=bd.name, kwargs...)
+
+draw_soi(bd::CelestialBody, t; kwargs...
+    ) = draw_wireframe_sphere(time_orbital_position(t, bd.orbit), bd.SoI; color=bd.color, name=bd.name, opacity=0.25, kwargs...)

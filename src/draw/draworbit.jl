@@ -97,8 +97,6 @@ function draw_orbit(orb::Orbit, starttime, endtime=nothing; npts=200, kwargs...)
 
     startangle = time_to_true(starttime, orb)
     endangle = wrap_angle(time_to_true(endtime, orb), startangle+1e-3)
-    @show startangle, endangle
-    @show true_to_time(startangle, orb, starttime-eps(Float64)), true_to_time(endangle, orb, starttime)
     angles = collect(range(startangle, stop=endangle, length=npts))
     return draw_orbit(orb, angles, starttime; kwargs...)
 end

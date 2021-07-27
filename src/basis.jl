@@ -42,8 +42,7 @@ function orientation_rotation(pos, vel, h=cross(pos, vel))
     return basis_rotation(prograde, radial)
 end
 
-orientation_rotation(stvec::StateVector) = orientation_rotation(stvec.position, stvec.velocity)
-orientation_rotation(θ, orb::Orbit) = orientation_rotation(StateVector(θ, orb))
+orientation_rotation(θ, orb::Orbit) = orientation_rotation(state_vector(θ, orb)...)
 
 time_orientation_rotation(t, orb::Orbit) = orientation_rotation(time_to_true(t, orb), orb)
 

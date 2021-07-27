@@ -94,7 +94,7 @@ function departarrive_orbit(r̄ₒ::AbstractVector{<:Real}, tₒ, prim::Union{Ce
     # return daorb, 0, Δv̄
 end
 
-function quick_departarrive_orbit(pkorb::Orbit{<:CelestialBody}, v̄rel::AbstractVector{<:Real}, tₛₚ; out=true, tol=0.1, maxit=50)
+function fast_departarrive_orbit(pkorb::Orbit{<:CelestialBody}, v̄rel::AbstractVector{<:Real}, tₛₚ; out=true, tol=0.1, maxit=50)
     c = out ? 1 : -1
     μ = pkorb.primary.μ
     rₛₚ = pkorb.primary.SoI
@@ -154,14 +154,15 @@ function quick_departarrive_orbit(pkorb::Orbit{<:CelestialBody}, v̄rel::Abstrac
     tₚₖ = true_to_time(θₚₖ, pkorb, tₛₚ-Δt-pkorb.period/2)
     v̄ₚₖ = orbital_velocity(θₚₖ, pkorb)
     Δv̄ = c*(v̄ₒ .- v̄ₚₖ)
+    @show it
     return Orbit(tₚₖ, r̄ₒ, v̄ₒ, pkorb.primary), Δv̄
 end
 
 departure_orbit(pkorb::Orbit{<:CelestialBody}, v̄rel::AbstractVector{<:Real}, tₛₚ; kwargs...) = departarrive_orbit(pkorb, v̄rel, tₛₚ; out=true,  kwargs...)
 arrival_orbit(pkorb::Orbit{<:CelestialBody}, v̄rel::AbstractVector{<:Real}, tₛₚ; kwargs...)   = departarrive_orbit(pkorb, v̄rel, tₛₚ; out=false, kwargs...)
 
-quick_departure_orbit(pkorb::Orbit{<:CelestialBody}, v̄rel::AbstractVector{<:Real}, tₛₚ; kwargs...) = quick_departarrive_orbit(pkorb, v̄rel, tₛₚ; out=true, kwargs...)
-quick_arrival_orbit(pkorb::Orbit{<:CelestialBody}, v̄rel::AbstractVector{<:Real}, tₛₚ; kwargs...)   = quick_departarrive_orbit(pkorb, v̄rel, tₛₚ; out=false, kwargs...)
+fast_departure_orbit(pkorb::Orbit{<:CelestialBody}, v̄rel::AbstractVector{<:Real}, tₛₚ; kwargs...) = fast_departarrive_orbit(pkorb, v̄rel, tₛₚ; out=true, kwargs...)
+fast_arrival_orbit(pkorb::Orbit{<:CelestialBody}, v̄rel::AbstractVector{<:Real}, tₛₚ; kwargs...)   = fast_departarrive_orbit(pkorb, v̄rel, tₛₚ; out=false, kwargs...)
 
 
 # true anomaly/time at the SoI

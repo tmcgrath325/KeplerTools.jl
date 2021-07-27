@@ -101,13 +101,13 @@ end
     # recover orbits from state vectors
     for bd in sun.satellite_bodies
         t = (rand()-2)*10*bd.orbit.period + bd.orbit.epoch
-        svec = time_StateVector(t, bd.orbit)
-        orb = Orbit(t, svec, bd.primary, bd.orbit.epoch)
+        pos, vel = time_state_vector(t, bd.orbit)
+        orb = Orbit(t, pos, vel, bd.primary, bd.orbit.epoch)
         @test orb ≈ bd.orbit
-        svec2 = time_StateVector(t, orb)
-        @test isapprox(svec.position, svec2.position, atol=norm(svec.position)*1e-6)
-        @test isapprox(svec.velocity, svec2.velocity, atol=norm(svec.velocity)*1e-6)
-        orb2 = Orbit(t, svec2, bd.primary)
+        pos2, vel2 = time_state_vector(t, orb)
+        @test isapprox(pos, pos2, atol=norm(pos)*1e-6)
+        @test isapprox(vel, vel2, atol=norm(vel)*1e-6)
+        orb2 = Orbit(t, pos2, vel2, bd.primary)
         @test orb2 ≈ bd.orbit
     end
     # generate random elliptical orbits for testing, and try to recover them from state vectors
@@ -122,8 +122,8 @@ end
                     sun
                     )
         time = orb.epoch + 1e6*rand()
-        stvec = time_StateVector(time, orb)
-        @test Orbit(time, stvec, sun) ≈ orb
+        pos, vel = time_state_vector(time, orb)
+        @test Orbit(time, pos, vel, sun) ≈ orb
     end
 
     # generate random hyperbolic orbits for testing, and try to recover them from state vectors
@@ -140,8 +140,8 @@ end
                     sun
                     )
         time = orb.epoch + 1e6*rand()
-        stvec = time_StateVector(time, orb)
-        @test Orbit(time, stvec, sun) ≈ orb
+        pos, vel = time_state_vector(time, orb)
+        @test Orbit(time, pos, vel, sun) ≈ orb
     end
 end
 
@@ -190,13 +190,15 @@ end
                     )
         starttime = orb.epoch + 1e6*rand()
         endtime = starttime + orb.period*rand()
-        startstate, endstate = time_StateVector(starttime, orb), time_StateVector(endtime, orb)
+        (spos, svel), (epos, evel) = time_state_vector(starttime, orb), time_state_vector(endtime, orb)
         orb2 = p_lambert(orb, orb, starttime, endtime)
         @test orb2 ≈ orb
-        @test isapprox(time_StateVector(starttime, orb2), startstate)
-        @test isapprox(time_StateVector(endtime, orb2), endstate)
+        @test isapprox(time_orbital_position(starttime, orb2), spos)
+        @test isapprox(time_orbital_velocity(starttime, orb2), svel)
+        @test isapprox(time_orbital_position(endtime, orb2), epos)
+        @test isapprox(time_orbital_velocity(endtime, orb2), evel)
         d = orb.i<π/2 ? 1 : -1
-        @test isapprox(KT.p_lambert_velocity(startstate.position, endstate.position, endtime-starttime, μ; dir=d), startstate.velocity, rtol=1e-6)
+        @test isapprox(KT.p_lambert_velocity(spos, epos, endtime-starttime, μ; dir=d), svel, rtol=1e-6)
     end
 
     # generate random hyperbolic orbits for testing, and recover them with the Lambert solver
@@ -215,13 +217,15 @@ end
                     )
         starttime = orb.epoch + 1e6*rand()
         endtime = starttime + orb.period*rand()
-        startstate, endstate = time_StateVector(starttime, orb), time_StateVector(endtime, orb)
+        (spos, svel), (epos, evel) = time_state_vector(starttime, orb), time_state_vector(endtime, orb)
         orb2 = p_lambert(orb, orb, starttime, endtime)
         @test orb2 ≈ orb
-        @test isapprox(time_StateVector(starttime, orb2), startstate)
-        @test isapprox(time_StateVector(endtime, orb2), endstate)
+        @test isapprox(time_orbital_position(starttime, orb2), spos)
+        @test isapprox(time_orbital_velocity(starttime, orb2), svel)
+        @test isapprox(time_orbital_position(endtime, orb2), epos)
+        @test isapprox(time_orbital_velocity(endtime, orb2), evel)
         d = orb.i<π/2 ? 1 : -1
-        @test isapprox(KT.p_lambert_velocity(startstate.position, endstate.position, endtime-starttime, μ; dir=d), startstate.velocity, rtol=1e-6)
+        @test isapprox(KT.p_lambert_velocity(spos, epos, endtime-starttime, μ; dir=d), svel, rtol=1e-6)
     end
 end
 
@@ -231,18 +235,16 @@ end
     starttime = 5091522.
     endtime = starttime + 5588238.
     torb = p_lambert(kerbin.orbit, duna.orbit, starttime, endtime)
-    v̄rel = time_StateVector(starttime, torb).velocity - time_StateVector(starttime, kerbin.orbit).velocity
+    v̄rel = time_orbital_velocity(starttime, torb) - time_orbital_velocity(starttime, kerbin.orbit)
 
     # define parking orbit
     pkorb = Orbit(kerbin.eqradius+100000, kerbin)
 
-    # get quick departure orbit (valid for circular parking orbits)
-    dorb, Δv̄ = quick_departarrive_orbit(pkorb, v̄rel, starttime)
-    @test isapprox(time_StateVector(KT.ejection_time(dorb), dorb).velocity, v̄rel; rtol=1e-6)
-    # TODO: match position of start orbit 
-    # @test StateVector(dorb.epoch, dorb).position ≈ StateVector(dorb.epoch, pkorb).position
+    # get fast departure orbit (valid for circular parking orbits)
+    dorb, Δv̄ = fast_departarrive_orbit(pkorb, v̄rel, starttime)
+    @test isapprox(time_orbital_velocity(KT.ejection_time(dorb), dorb), v̄rel; rtol=1e-6)
 
-    # recover (something similar to) the quick departure orbit from the optimizer
+    # recover (something similar to) the fast departure orbit from the optimizer
     θₒ = time_to_true(dorb.epoch, pkorb)
     d2orb, eccobj, Δv̄2 = departarrive_orbit(pkorb, v̄rel, starttime)
     @test isapprox(d2orb, dorb; atol=0.01, rtol=0.01)
