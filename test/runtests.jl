@@ -241,14 +241,19 @@ end
     pkorb = Orbit(kerbin.eqradius+100000, kerbin)
 
     # get fast departure orbit (valid for circular parking orbits)
-    dorb, Δv̄ = fast_departarrive_orbit(pkorb, v̄rel, starttime)
+    dorb, Δv̄ = fast_departure_orbit(pkorb, v̄rel, starttime)
     @test isapprox(time_orbital_velocity(KT.ejection_time(dorb), dorb), v̄rel; rtol=1e-6)
 
     # recover (something similar to) the fast departure orbit from the optimizer
     θₒ = time_to_true(dorb.epoch, pkorb)
-    d2orb, eccobj, Δv̄2 = departarrive_orbit(pkorb, v̄rel, starttime)
+    d2orb, eccobj, Δv̄2 = departure_orbit(pkorb, v̄rel, starttime)
     @test isapprox(d2orb, dorb; atol=0.01, rtol=0.01)
 
+end
+
+@testset "Instantaneous Burns" begin
+    include(joinpath(@__DIR__, "..", "data", "kerbol_system.jl"))
+    #TODO
 end
 
 @testset "Patched Conic Transfer Calculations" begin
@@ -266,6 +271,11 @@ end
     pc = Porkchop(startorb, endorb, startrange..., flightrange...)
 
     @test isapprox(minimum(pc.Δv), tfer.Δv; rtol=0.01)
+end
+
+@testset "SoI patch propagation" begin
+    include(joinpath(@__DIR__, "..", "data", "kerbol_system.jl"))
+    #TODO
 end
 
 

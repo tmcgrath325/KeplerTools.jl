@@ -1,5 +1,9 @@
 ### type definition ###
 
+"""
+A container with information about a series of patched-conic trajectories for a ballistic transfer from a starting orbit
+to an ending orbit, where the two orbits are in the same solar system.
+"""
 struct Transfer
     startorbit::Orbit
     endorbit::Orbit
@@ -30,7 +34,7 @@ function Transfer(startorb::Orbit, endorb::Orbit, starttime, endtime,
     eorb = tidx == length(transferpath) ? endorb : transferpath[tidx+1].orbit
     torb = p_lambert(sorb, eorb, starttime, endtime, patch_posns[tidx-1], patch_posns[tidx])
     v̄dep = time_orbital_velocity(starttime,torb) .- time_orbital_velocity(starttime,sorb)
-    v̄arr = time_orbital_velocity(endtime,  eorb) .- time_orbital_velocity(endtime,  torb)
+    v̄arr = time_orbital_velocity(endtime,  torb) .- time_orbital_velocity(endtime,  eorb)
     
     # backward to start
     dorbs = Orbit[]
@@ -154,14 +158,19 @@ end
 # optimize_patch_times(tfer::Transfer
 #     ) = optimize_patch_times(tfer.startorbit, tfer.endorbit, tfer.departure_time, tfer.arrival_time)
 
+"""
+    tfer = match_transfer_patch_times(startorb, endorb, stime, etime, patch_posns; atol=1e-6, maxit=100)
+    tfer = match_transfer_patch_times(tfer; kwargs...)
 
+Attempts to optimize transfer start and end times to ensure that patch times are continuous
+on either side of a patch, and returns the optimized Transfer.
+"""
 function match_transfer_patch_times(startorb, endorb, stime, etime, patch_posns; atol=1e-6, maxit=100)
-    err = 1+atol
-    it=0
     tfer = Transfer(startorb, endorb, stime, etime, patch_posns)
     up_errs, down_errs = patch_time_errors(tfer)
     tup_err = up_errs[end]
     tdown_err = down_errs[1]
+    it=0
     err = abs(tup_err) + abs(tdown_err)
     while err>atol && it<maxit
         it+=1
@@ -176,8 +185,8 @@ function match_transfer_patch_times(startorb, endorb, stime, etime, patch_posns;
     end
     return tfer
 end
-match_transfer_patch_times(tfer::Transfer
-    ) = match_transfer_patch_times(tfer.startorbit, tfer.endorbit, tfer.departure_time, tfer.arrival_time, tfer.patch_positions)
+match_transfer_patch_times(tfer::Transfer; kwargs...
+    ) = match_transfer_patch_times(tfer.startorbit, tfer.endorbit, tfer.departure_time, tfer.arrival_time, tfer.patch_positions; kwargs...)
 
 # ensure continuous position across SoI patches
 
@@ -186,7 +195,6 @@ new_patch_positions(tfer::Transfer
             [ejection_position(dorb) for dorb in tfer.ejection_orbits], 
             [insertion_position(aorb) for aorb in tfer.insertion_orbits]
 )
-
 
 function patch_position_errors(tfer::Transfer)
     up_time_distances   = Float64[]
@@ -198,7 +206,7 @@ function patch_position_errors(tfer::Transfer)
             r̄1 = time_orbital_position(tfer.ejection_orbits[end-i+2].epoch, tfer.ejection_orbits[end-i+2])
         end
         r̄2 = ejection_position(dorb) + time_orbital_position(ejection_time(dorb), dorb.primary.orbit)
-        prepend!(up_time_distances, r̄2.-r̄1)
+        prepend!(up_time_distances, norm(r̄2.-r̄1))
     end
     for (j,aorb) in enumerate(tfer.insertion_orbits)
         if j==1
@@ -207,22 +215,29 @@ function patch_position_errors(tfer::Transfer)
             r̄1 = time_orbital_position(tfer.insertion_orbits[j-1].epoch, tfer.insertion_orbits[j-1])
         end
         r̄2 = insertion_position(aorb) + time_orbital_position(insertion_time(aorb), aorb.primary.orbit)
-        append!(down_time_distances, r̄2.-r̄1)
+        append!(down_time_distances, norm(r̄2.-r̄1))
     end
     return up_time_distances, down_time_distances
 end
 
-function match_patch_positions(tfer; atol=1., maxit=100)
-    err = 1+atol
+"""
+    tfer = match_transfer_patch_positions(tfer; atol=1., maxit=100)
+
+Attempts to optimize transfer start and end times to ensure that patch times and positions are continuous
+on either side of a patch, and returns the optimized Transfer.
+"""
+function match_patch_positions(tfer::Transfer; atol=1., maxit=100)
+    err = sum(norm, patch_position_errors(tfer))
     it = 0
+    @show it, err
     while err > atol && it<maxit
         it += 1
         tfer = match_transfer_patch_times(tfer)
         tfer = Transfer(tfer, new_patch_positions(tfer))
-        err = sum(norm, patch_position_errors(tfer))
-        @show patch_position_errors(tfer)
-        @show it, err
+        err = sum(x->sum(abs,x), patch_position_errors(tfer))
+        @show it, patch_position_errors(tfer)
     end
+    return tfer
 end
 
 ### descriptive display ###

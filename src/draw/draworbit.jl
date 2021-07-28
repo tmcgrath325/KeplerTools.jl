@@ -1,8 +1,9 @@
 # Divides each element of the tuple by the specified number
 fade_color(color, div=2) = color.÷div
 
-standard_layout(bd::CelestialObject, 
-                size=isempty(bd.satellite_bodies) ? bd.SoI : 1.1*maximum(bd.satellite_bodies).orbit.a
+standard_orbit_plot_size(bd::CelestialObject) = isempty(bd.satellite_bodies) ? bd.SoI : 1.05*maximum(bd.satellite_bodies).orbit.a * (1+maximum(bd.satellite_bodies).orbit.e)
+
+standard_orbit_layout(bd::CelestialObject, size=standard_orbit_plot_size(bd)
                 ) = Layout(autosize=false, width=800, height=600,
                            paper_bgcolor = "rgb(30, 30, 30)",
                            margin=attr(l=0, r=0, b=0, t=0),
@@ -21,6 +22,16 @@ standard_hoverlabel(color) = attr(bgcolor = "rgb$color",
                                   align="left",
 )
 
+"""
+    trace = draw_orbit(orb, angles, starttime; kwargs...)
+    trace = draw_orbit(orb, starttime, endtime=nothing; kwargs...)
+
+Creates a trace of an orbit `orb` at each true anomaly in `angles`.
+
+If a start time and end time are provided, the orbit is drawn between the
+two times. If the end time is not specified, a full period is drawn. 
+
+"""
 function draw_orbit(orb::Orbit, angles::AbstractVector{<:Real}, starttime; color=(255,255,255), fadedcolor=fade_color(color), name="", timedef=KerbalTime)
     pos_mat = fill(NaN, 3, length(angles))
     vel_mat = fill(NaN, 3, length(angles))
@@ -80,13 +91,17 @@ function draw_orbit(orb::Orbit, starttime, endtime=nothing; npts=200, kwargs...)
         if orb.e < 1
             endtime = starttime + orb.period
         else
-            if typeof(orb.prim) == star
-                furthest_body = maximum(orb.prim.satellitebodies)
-                distlim = 1.05 * furthest_body.orb.a * (1+furthest_body.orb.e)
+            if typeof(orb.primary) == Star
+                furthest_body = maximum(orb.primary.satellite_bodies)
+                distlim = 1.05 * furthest_body.orbit.a * (1+furthest_body.orbit.e)
             else
-                distlim = orb.prim.SoI
+                distlim = orb.primary.SoI
             end
             endtime = true_to_time(orbital_angle(distlim, orb), orb) 
+            if endtime < starttime 
+                return AbstractTrace[]
+            end
+            starttime = true_to_time(-orbital_angle(distlim, orb), orb) 
         end
     end
 

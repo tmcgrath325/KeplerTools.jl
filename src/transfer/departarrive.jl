@@ -94,6 +94,7 @@ function departarrive_orbit(r̄ₒ::AbstractVector{<:Real}, tₒ, prim::Union{Ce
     # return daorb, 0, Δv̄
 end
 
+
 function fast_departarrive_orbit(pkorb::Orbit{<:CelestialBody}, v̄rel::AbstractVector{<:Real}, tₛₚ; out=true, tol=0.1, maxit=50)
     c = out ? 1 : -1
     μ = pkorb.primary.μ
@@ -154,14 +155,47 @@ function fast_departarrive_orbit(pkorb::Orbit{<:CelestialBody}, v̄rel::Abstract
     tₚₖ = true_to_time(θₚₖ, pkorb, tₛₚ-Δt-pkorb.period/2)
     v̄ₚₖ = orbital_velocity(θₚₖ, pkorb)
     Δv̄ = c*(v̄ₒ .- v̄ₚₖ)
-    @show it
     return Orbit(tₚₖ, r̄ₒ, v̄ₒ, pkorb.primary), Δv̄
 end
 
+
+"""
+    orb = departure_orbit(pkorb, v̄rel, tₛₚ)
+
+Computes an optimized departure orbit from the parking orbit `pkorb`, the relative velocity
+at the patch `v̄rel`, the time at the patch `tₛₚ`. 
+"""
 departure_orbit(pkorb::Orbit{<:CelestialBody}, v̄rel::AbstractVector{<:Real}, tₛₚ; kwargs...) = departarrive_orbit(pkorb, v̄rel, tₛₚ; out=true,  kwargs...)
+
+"""
+    orb = arrival_orbit(pkorb, v̄rel, tₛₚ)
+
+Computes an optimized arrival orbit from the parking orbit `pkorb`, the relative velocity
+at the patch `v̄rel`, the time at the patch `tₛₚ`.
+"""
 arrival_orbit(pkorb::Orbit{<:CelestialBody}, v̄rel::AbstractVector{<:Real}, tₛₚ; kwargs...)   = departarrive_orbit(pkorb, v̄rel, tₛₚ; out=false, kwargs...)
 
+
+"""
+    orb = fast_departure_orbit(pkorb, v̄rel, tₛₚ)
+
+Computes a departure orbit from the parking orbit `pkorb`, the relative velocity
+at the patch `v̄rel`, the time at the patch `tₛₚ`. 
+
+This function is faster than `departure_orbit`, but may return sub-optimal trajectories
+for highly elliptical parking orbits. 
+"""
 fast_departure_orbit(pkorb::Orbit{<:CelestialBody}, v̄rel::AbstractVector{<:Real}, tₛₚ; kwargs...) = fast_departarrive_orbit(pkorb, v̄rel, tₛₚ; out=true, kwargs...)
+
+"""
+    orb = fast_arrival_orbit(pkorb, v̄rel, tₛₚ)
+
+Computes a arrival orbit from the parking orbit `pkorb`, the relative velocity
+at the patch `v̄rel`, the time at the patch `tₛₚ`. 
+
+This function is faster than `arrival_orbit`, but may return sub-optimal trajectories
+for highly elliptical parking orbits. 
+"""
 fast_arrival_orbit(pkorb::Orbit{<:CelestialBody}, v̄rel::AbstractVector{<:Real}, tₛₚ; kwargs...)   = fast_departarrive_orbit(pkorb, v̄rel, tₛₚ; out=false, kwargs...)
 
 
@@ -169,22 +203,81 @@ fast_arrival_orbit(pkorb::Orbit{<:CelestialBody}, v̄rel::AbstractVector{<:Real}
 patch_angle(daorb::Orbit, c) = c*orbital_angle(daorb.primary.SoI, daorb)
 patch_time(daorb::Orbit, c) = true_to_time(patch_angle(daorb, c), daorb)
 
+"""
+    θ = ejection_angle(dorb)
+
+Computes the true anomaly at SoI ejection for a departure orbit `dorb`.
+"""
 ejection_angle(dorb::Orbit)  = patch_angle(dorb,  1)
+
+"""
+    t = ejection_time(dorb)
+
+Computes the time at SoI ejection for a departure orbit `dorb`.
+"""
 ejection_time(dorb::Orbit)   = patch_time(dorb,  1)
 
+"""
+    θ = insertion_angle(aorb)
+
+Computes the true anomaly at SoI insertion for a arrival orbit `aorb`.
+"""
 insertion_angle(aorb::Orbit) = patch_angle(aorb, -1)
+
+"""
+    t = insertion_angle(aorb)
+
+Computes the time at SoI insertion for a arrival orbit `aorb`.
+"""
 insertion_time(aorb::Orbit)  = patch_time(aorb, -1)
 
 patch_position(daorb::Orbit, c) = orbital_position(patch_angle(daorb, c), daorb)
 patch_velocity(daorb::Orbit, c) = orbital_velocity(patch_angle(daorb, c), daorb)
-patch_state_Vector(daorb::Orbit, c) = state_vector(patch_angle(daorb, c), daorb)
+patch_state_vector(daorb::Orbit, c) = state_vector(patch_angle(daorb, c), daorb)
 
+"""
+    r̄ = ejection_position(dorb)
+
+Computes the position vector at SoI ejection for a departure orbit `dorb`.
+"""
 ejection_position(dorb::Orbit) = orbital_position(ejection_angle(dorb), dorb)
-ejection_velocity(dorb::Orbit) = orbital_velocity(ejection_angle(dorb), dorb)
-ejection_state_Vector(dorb::Orbit) = state_vector(ejection_angle(dorb), dorb)
 
+"""
+    v̄ = ejection_velocity(dorb)
+
+Computes the velocity vector at SoI ejection for a departure orbit `dorb`.
+"""
+ejection_velocity(dorb::Orbit) = orbital_velocity(ejection_angle(dorb), dorb)
+
+"""
+    r̄, v̄ = ejection_state_vector(dorb)
+
+Computes the state vector at SoI ejection for a departure orbit `dorb`.
+"""
+ejection_state_vector(dorb::Orbit) = state_vector(ejection_angle(dorb), dorb)
+
+
+"""
+    r̄ = insertion_position(aorb)
+
+Computes the position vector at SoI insertion for a arrival orbit `aorb`.
+"""
 insertion_position(aorb::Orbit) = orbital_position(insertion_angle(aorb), aorb)
+
+
+"""
+    v̄= insertion_velocity(aorb)
+
+Computes the velocity vector at SoI insertion for a arrival orbit `aorb`.
+"""
 insertion_velocity(aorb::Orbit) = orbital_velocity(insertion_angle(aorb), aorb)
-insertion_state_Vector(aorb::Orbit) = state_vector(insertion_angle(aorb), aorb)
+
+
+"""
+    r̄, v̄ = insertion_state_vector(aorb)
+
+Computes the state vector at SoI insertion for a arrival orbit `aorb`.
+"""
+insertion_state_vector(aorb::Orbit) = state_vector(insertion_angle(aorb), aorb)
 
     

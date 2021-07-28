@@ -1,8 +1,36 @@
-function draw_porkchop(pc::Porkchop; levelscale=1.1, nlevels=16, timedef=KerbalTime)
-    minΔv = minimum(pc.Δv)
+standard_porkchop_layout(
+    ) = Layout(autosize=false, width=800, height=600,
+            paper_bgcolor = "rgb(30, 30, 30)",
+            font = attr(family = "Courier New, monospace",
+                        size = 10,
+                        color = "rgb(200, 200, 200)"
+            ), 
+            xaxis=attr(title_text="Transfer start (day #)",
+                       showspikes=true,
+                       spikemode="across",
+                       spikecolor="rgb(200, 200, 200)",
+                       spikedash="solid",
+                       spikethickness=-1,
+            ),
+            yaxis=attr(title_text="Transfer duration (days)",
+                       showspikes=true,
+                       spikemode="across",
+                       spikecolor="rgb(200, 200, 200)",
+                       spikedash="solid",
+                       spikethickness=-1,
+            ),
+)
+
+"""
+    trace = draw_porkchop(pc; kwargs...)
+
+Creates a trace of a porkchop plot.
+"""
+function draw_porkchop(pc::Porkchop; levelscale=1.1, nlevels=16, timedef=KerbalTime, plottype=:Δv)
+    minΔv = minimum(getfield(pc, plottype))
     lvls = minΔv * [levelscale .^ i for i=0:nlevels]
-    logΔv = fill(NaN, size(pc.Δv)...) 
-    for (i,el) in enumerate(pc.Δv)
+    logΔv = fill(NaN, size(getfield(pc, plottype))...) 
+    for (i,el) in enumerate(getfield(pc, plottype))
         logΔv[i] = log(el)/log(levelscale)
     end
     loglvls = [log(lvl)/log(levelscale) for lvl in lvls]
@@ -32,19 +60,12 @@ function draw_porkchop(pc::Porkchop; levelscale=1.1, nlevels=16, timedef=KerbalT
                     family = "Courier New, monospace",
                 ),  
             ), 
-            # tickcolor = ,
             tickfont = attr(
                 family = "Courier New, monospace",
             ),
         ),
-        customdata = pc.Δv,
+        customdata = getfield(pc, plottype),
         hovertemplate = "Δv = %{customdata:.2f} m/s<extra></extra>",
-        # xaxis = attr(
-        #     title_text = "Transfer start (day #)",
-        # ),
-        # yaxis = attr(
-        #     title_text="Transfer duration (days)",
-        # ),
     )
     return trace
 end

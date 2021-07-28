@@ -4,19 +4,26 @@ struct Porkchop
     starttimes::Vector{Float64}
     flighttimes::Vector{Float64}
     # transfers::Matrix{Transfer}
+    departure_Δv::Matrix{Float64}
+    arrival_Δv::Matrix{Float64}
     Δv::Matrix{Float64}
 end
 
 function Porkchop(startorb::Orbit, endorb::Orbit, starttimes::AbstractVector{<:Real}, flighttimes::AbstractVector{<:Real}; tfer_fun = Transfer)
+    departure_Δv = fill(NaN, length(starttimes), length(flighttimes))
+    arrival_Δv = fill(NaN, length(starttimes), length(flighttimes))
     Δv = fill(NaN, length(starttimes), length(flighttimes))
     tferpath=path_to_body(startorb.primary, endorb.primary)
     cmnparent=closest_common_parent(startorb, endorb)
     for (i,st) in enumerate(starttimes)
         for (j,ft) in enumerate(flighttimes)
-            Δv[i,j] = tfer_fun(startorb, endorb, st, st+ft; transferpath=tferpath, commonparent=cmnparent).Δv
+            tfer = tfer_fun(startorb, endorb, st, st+ft; transferpath=tferpath, commonparent=cmnparent)
+            departure_Δv[i,j] = norm(tfer.burns[1].Δv̄)
+            arrival_Δv[i,j] = norm(tfer.burns[end].Δv̄)
+            Δv[i,j] = tfer.Δv
         end
     end
-    return Porkchop(startorb, endorb, starttimes, flighttimes, Δv)
+    return Porkchop(startorb, endorb, starttimes, flighttimes, departure_Δv, arrival_Δv, Δv)
 end
 
 fastPorkchop(startorb::Orbit, endorb::Orbit, starttimes::AbstractVector{<:Real}, flighttimes::AbstractVector{<:Real} 
