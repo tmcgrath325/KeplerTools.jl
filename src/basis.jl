@@ -73,7 +73,7 @@ Computes the rotation matrix to align `vec` with `vecref`.
 function align_vectors(vec::AbstractVector{<:Real}, vecref::AbstractVector{<:Real})
     nvec, nvecref = normalize(vec), normalize(vecref)
     axis = normalize(cross(nvec, nvecref))
-    angle = acos(dot(nvec, nvecref))
+    angle = wrap_acos(dot(nvec, nvecref))
 
     return AngleAxis(angle, axis...)
 end

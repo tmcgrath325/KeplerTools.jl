@@ -1,3 +1,12 @@
+"""
+    v̄ = p_lambert_velocity(r̄ₛ, r̄ₑ, Δt, μ; dir=1)
+
+Computes the single-revolution orbit around a body with gravity parameter `μ`, passing through positions `r̄ₛ` and `r̄ₑ`, 
+and separated by time interval `Δt`.
+
+Because there are two solutions, `dir` can be used to specifiy a clockwise or anti-clockwise orbit
+relative to the coordinate system.
+"""
 function p_lambert_velocity(r̄ₛ::AbstractVector{<:Real}, r̄ₑ::AbstractVector{<:Real}, Δt, μ; dir=1, tol=1e-12, maxit=200)
     rₛ, rₑ = norm(r̄ₛ), norm(r̄ₑ)
 
@@ -62,9 +71,46 @@ function p_lambert_velocity(r̄ₛ::AbstractVector{<:Real}, r̄ₑ::AbstractVect
     return v̄ₛ
 end
 
+"""
+    torb = p_lambert_velocity(sorbₛ, eorb, stime, etime, μ, s_patch_position=@SVector(zeros(3)), e_patch_position=@SVector(zeros(3)); kwargs...)
+
+Computes the single-revolution orbit around a body with gravity parameter `μ`, passing through the positions of orbits 
+`sorb` and `eorb` at times `stime` and `etime`, respectively.
+
+Positions `s_patch_position` and `e_patch_position` can be provided to modify the start and end positions, respectively.
+This can be used to minimize patching error across spheres of influence.
+"""
 function p_lambert(sorb::Orbit, eorb::Orbit, stime, etime, s_patch_position=@SVector(zeros(3)), e_patch_position=@SVector(zeros(3)); kwargs...) 
     r̄ₛ, r̄ₑ = time_orbital_position(stime,sorb) + s_patch_position, time_orbital_position(etime,eorb) + e_patch_position
     d = sorb.i<π/2 ? 1 : -1     # choose short/long way based on clockwise sense of `sorb`
     v̄ₛ = p_lambert_velocity(r̄ₛ, r̄ₑ, etime-stime, sorb.primary.μ; dir=d, kwargs...)
     return Orbit(stime, r̄ₛ, v̄ₛ, sorb.primary)
+end
+
+function plane_change_p_lambert(sorb::Orbit, eorb::Orbit, stime, etime, s_patch_position=@SVector(zeros(3)), e_patch_position=@SVector(zeros(3)); kwargs...)
+    r̄ₛ, r̄ₑ = time_orbital_position(stime,sorb) + s_patch_position, time_orbital_position(etime,eorb) + e_patch_position
+    
+    # change r̄ₑ so that it is in-plane with the starting orbit, at the same angle and distance.
+    r̄ₑplane = inertial_to_perifocal_bases(r̄ₑ, sorb)
+    r̄ₑplane = perifocal_to_inertial_bases(norm(r̄ₑ)*normalize(@SVector([r̄ₑplane[1], r̄ₑplane[2], 0])), sorb)
+    
+    d = sorb.i<π/2 ? 1 : -1     # choose short/long way based on clockwise sense of `sorb`
+    v̄ₛ = p_lambert_velocity(r̄ₛ, r̄ₑplane, etime-stime, sorb.primary.μ; dir=d, kwargs...)
+    torb1 = Orbit(stime, r̄ₛ, v̄ₛ, sorb.primary)
+    
+    # identify the true anomaly at plane change
+    θs = time_to_true(stime,torb1)
+    pcangle = min(wrap_angle(time_to_true(etime,torb1) - θs - π/2, 0.))
+    θpc = θs + pcangle
+    pctime = true_to_time(θpc, torb1, stime)
+
+    # rotate velocity vector prior to plane change burn to get post-burn velocity
+    r̄pc, v̄pc1 = state_vector(θpc, torb1)
+    n̂1 = normalize(cross(r̄pc, v̄pc1))
+    n̂2 = normalize(cross(r̄pc, r̄ₑ))
+    Ri = align_vectors(n̂1, n̂2)
+    v̄pc2 = Ri * v̄pc1
+    torb2 = Orbit(pctime, r̄pc, v̄pc2, torb1.primary)
+
+    return torb1, torb2
 end

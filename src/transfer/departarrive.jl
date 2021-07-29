@@ -17,7 +17,9 @@ function departarrive_true_anomaly(r̄ₒ::AbstractVector{<:Real}, prim::Union{C
     rₛₚ = prim.SoI
     ĥ = normalize(cross(r̄ₒ,v̄rel))
     n̂ = normalize(cross(@SVector([0.,0.,1.]), ĥ))
-
+    if isnan(norm(n̂))
+        n̂ = @SVector([1.,0.,0.])
+    end
     a =  1 / (2/rₛₚ - sum(abs2,v̄rel)/μ)
     i = wrap_acos(ĥ[3])
     Ω = wrap_angle(copysign(1,n̂[2]) * acos(n̂[1]))
@@ -84,6 +86,7 @@ function departarrive_orbit(pkorb::Orbit{<:CelestialBody}, v̄rel::AbstractVecto
     θₚₖ = Optim.minimizer(res)
 
     daorb, eccobj, Δv̄ = departarrive_true_anomaly(θₚₖ, pkorb, v̄rel, tₛₚ, c)
+
     if eccobj > 1e-3
         @warn "departure/arrival velocity mismatch from target direction: $(pkorb.primary.name), $eccobj"
     end
