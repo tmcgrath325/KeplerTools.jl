@@ -8,4 +8,4 @@ startorb = Orbit(kerbin.eqradius + 100000, kerbin)
 endorb   = Orbit(duna.eqradius   + 100000, duna)
 
 ProfileView.@profview pc = Porkchop(startorb, endorb, stime1, stime2, ftime1, ftime2; npts=100)
-ProfileView.@profview qpc = quickPorkchop(startorb, endorb, stime1, stime2, ftime1, ftime2; npts=100)
+ProfileView.@profview qpc = fastPorkchop(startorb, endorb, stime1, stime2, ftime1, ftime2; npts=100)

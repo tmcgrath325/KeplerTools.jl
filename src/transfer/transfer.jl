@@ -22,7 +22,8 @@ end
 function Transfer(startorb::Orbit, endorb::Orbit, starttime, endtime,
                   patch_posns::Union{Nothing,AbstractVector{<:AbstractVector{<:Real}}} = nothing;
                   transferpath=path_to_body(startorb.primary, endorb.primary), commonparent=closest_common_parent(startorb, endorb), 
-                  torb_fun = p_lambert, dorb_fun = departure_orbit, aorb_fun = arrival_orbit)
+                  torb_fun = p_lambert, dorb_fun = departure_orbit, aorb_fun = arrival_orbit,
+                  match_eorb_Mo=true, match_sorb_Mo=true)
     #
     if isnothing(patch_posns)
         patch_posns = fill(@SVector(zeros(3)), length(transferpath)-1)
@@ -47,7 +48,17 @@ function Transfer(startorb::Orbit, endorb::Orbit, starttime, endtime,
     didx = tidx-1
     while didx > 0
         sorb = didx == 1 ? startorb : transferpath[didx-1].orbit
-        dorb = dorb_fun(sorb, v̄dep, stime)[1]
+        if didx==1 && !match_sorb_Mo
+            dorb = dorb_fun(startorb, v̄dep, stime; match_pkorb_Mo=false)[1]
+            r̄ₒ = time_orbital_position(dorb.epoch, dorb)
+            θₚₖ = angle_in_plane(r̄ₒ, startorb)
+            startorb = Orbit(startorb.a, startorb.e, startorb.i, startorb.Ω, startorb.ω, 
+                             true_to_mean(θₚₖ, startorb), 
+                             dorb.epoch, startorb.primary,
+            )
+        else
+            dorb = dorb_fun(sorb, v̄dep, stime)[1]
+        end
         if didx>1
             if norm(patch_posns[didx-1])>0
                 dorb = departarrive_true_anomaly(time_orbital_position(dorb.epoch, dorb) + patch_posns[didx-1], 
@@ -69,7 +80,17 @@ function Transfer(startorb::Orbit, endorb::Orbit, starttime, endtime,
     aidx = tidx+1
     while aidx < length(transferpath)+1
         eorb = aidx == length(transferpath) ? endorb : transferpath[aidx+1].orbit
-        aorb = aorb_fun(eorb, v̄arr, etime)[1]
+        if aidx==length(transferpath) && !match_eorb_Mo
+            aorb = aorb_fun(endorb, v̄arr, etime; match_pkorb_Mo=false)[1]
+            r̄ₒ = time_orbital_position(aorb.epoch, aorb)
+            θₚₖ = angle_in_plane(r̄ₒ, endorb)
+            endorb = Orbit(endorb.a, endorb.e, endorb.i, endorb.Ω, endorb.ω, 
+                           true_to_mean(θₚₖ, endorb), 
+                           aorb.epoch, endorb.primary,
+            )
+        else
+            aorb = aorb_fun(eorb, v̄arr, etime)[1]
+        end
         if aidx<=length(patch_posns)
             if norm(patch_posns[aidx])>0
                 aorb = departarrive_true_anomaly(time_orbital_position(aorb.epoch, aorb) + patch_posns[aidx], 
@@ -100,7 +121,7 @@ function Transfer(startorb::Orbit, endorb::Orbit, starttime, endtime,
         push!(burns, Burn(torbs[i], Δv̄, torbs[i+1].epoch))
     end
     push!(burns, arrival_burn)
-    
+
     Δv = sum([norm(b.Δv̄) for b in burns])
 
     # construct Transfer 
@@ -150,23 +171,6 @@ function patch_time_errors(tfer::Transfer)
     return up_time_mismatches, down_time_mismatches
 end
 
-# function optimize_patch_times(startorb, endorb, stime, etime)
-#     function objectivefun(stet) 
-#         up_errs, down_errs = patch_time_errors(
-#                                 Transfer(startorb,
-#                                 endorb,
-#                                 stet[1],
-#                                 stet[2])
-#         )
-#         return abs(up_errs[end]) + abs(down_errs[1])
-#     end
-#     res = optimize(objectivefun, [stime, etime], LBFGS())
-#     (stime, etime) = Optim.minimizer(res)
-#     return Transfer(startorb, endorb, stime, etime)
-# end
-# optimize_patch_times(tfer::Transfer
-#     ) = optimize_patch_times(tfer.startorbit, tfer.endorbit, tfer.departure_time, tfer.arrival_time)
-
 """
     tfer = match_transfer_patch_times(startorb, endorb, stime, etime, patch_posns; atol=1e-6, maxit=100)
     tfer = match_transfer_patch_times(tfer; kwargs...)
@@ -174,19 +178,19 @@ end
 Attempts to optimize transfer start and end times to ensure that patch times are continuous
 on either side of a patch, and returns the optimized Transfer.
 """
-function match_transfer_patch_times(startorb, endorb, stime, etime, patch_posns; atol=1e-6, maxit=100)
-    tfer = Transfer(startorb, endorb, stime, etime, patch_posns)
+function match_transfer_patch_times(startorb, endorb, stime, etime, patch_posns; atol=1e-6, maxit=100, kwargs...)
+    tfer = Transfer(startorb, endorb, stime, etime, patch_posns; kwargs...)
     up_errs, down_errs = patch_time_errors(tfer)
     tup_err = up_errs[end]
     tdown_err = down_errs[1]
-    it=0
     err = abs(tup_err) + abs(tdown_err)
+    it=0
     while err>atol && it<maxit
         it+=1
         stime = stime + tup_err
         etime = etime + tdown_err
 
-        tfer = Transfer(startorb, endorb, stime, etime, patch_posns)
+        tfer = Transfer(startorb, endorb, stime, etime, patch_posns; kwargs...)
         up_errs, down_errs = patch_time_errors(tfer)
         tup_err = up_errs[end]
         tdown_err = down_errs[1]
@@ -206,44 +210,25 @@ new_patch_positions(tfer::Transfer
 )
 
 function patch_position_errors(tfer::Transfer)
-    up_time_distances   = Float64[]
-    down_time_distances = Float64[]
-    for (i,dorb) in enumerate(reverse(tfer.ejection_orbits))
-        if i==1
-            r̄1 = time_orbital_position(tfer.departure_time, tfer.transfer_orbits[1])
-        else
-            r̄1 = time_orbital_position(tfer.ejection_orbits[end-i+2].epoch, tfer.ejection_orbits[end-i+2])
-        end
-        r̄2 = ejection_position(dorb) + time_orbital_position(ejection_time(dorb), dorb.primary.orbit)
-        prepend!(up_time_distances, norm(r̄2.-r̄1))
-    end
-    for (j,aorb) in enumerate(tfer.insertion_orbits)
-        if j==1
-            r̄1 = time_orbital_position(tfer.arrival_time, tfer.transfer_orbits[end])
-        else
-            r̄1 = time_orbital_position(tfer.insertion_orbits[j-1].epoch, tfer.insertion_orbits[j-1])
-        end
-        r̄2 = insertion_position(aorb) + time_orbital_position(insertion_time(aorb), aorb.primary.orbit)
-        append!(down_time_distances, norm(r̄2.-r̄1))
-    end
-    return up_time_distances, down_time_distances
+    return tfer.patch_positions - new_patch_positions(tfer)
 end
 
 """
     tfer = match_transfer_patch_positions(tfer; atol=1., maxit=100)
 
-Attempts to optimize transfer start and end times to ensure that patch times and positions are continuous
+Attempts to optimize transfer start and end positions to ensure that patch times and positions are continuous
 on either side of a patch, and returns the optimized Transfer.
 """
-function match_patch_positions(tfer::Transfer; atol=1., maxit=100)
+function match_patch_positions(tfer::Transfer; atol=1., maxit=100, kwargs...)
     err = sum(norm, patch_position_errors(tfer))
     it = 0
     while err > atol && it<maxit
         it += 1
-        tfer = match_transfer_patch_times(tfer)
-        tfer = Transfer(tfer, new_patch_positions(tfer))
+        tfer = match_transfer_patch_times(tfer; kwargs...)
+        tfer = Transfer(tfer, new_patch_positions(tfer); kwargs...)
         err = sum(x->sum(abs,x), patch_position_errors(tfer))
     end
+    @show it
     return tfer
 end
 

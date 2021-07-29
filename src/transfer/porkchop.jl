@@ -9,7 +9,7 @@ struct Porkchop
     Δv::Matrix{Float64}
 end
 
-function Porkchop(startorb::Orbit, endorb::Orbit, starttimes::AbstractVector{<:Real}, flighttimes::AbstractVector{<:Real}; tfer_fun = Transfer)
+function Porkchop(startorb::Orbit, endorb::Orbit, starttimes::AbstractVector{<:Real}, flighttimes::AbstractVector{<:Real}; tfer_fun = Transfer, kwargs...)
     departure_Δv = fill(NaN, length(starttimes), length(flighttimes))
     arrival_Δv = fill(NaN, length(starttimes), length(flighttimes))
     Δv = fill(NaN, length(starttimes), length(flighttimes))
@@ -17,7 +17,7 @@ function Porkchop(startorb::Orbit, endorb::Orbit, starttimes::AbstractVector{<:R
     cmnparent=closest_common_parent(startorb, endorb)
     for (i,st) in enumerate(starttimes)
         for (j,ft) in enumerate(flighttimes)
-            tfer = tfer_fun(startorb, endorb, st, st+ft; transferpath=tferpath, commonparent=cmnparent)
+            tfer = tfer_fun(startorb, endorb, st, st+ft; transferpath=tferpath, commonparent=cmnparent, kwargs...)
             departure_Δv[i,j] = norm(tfer.burns[1].Δv̄)
             arrival_Δv[i,j] = norm(tfer.burns[end].Δv̄)
             Δv[i,j] = tfer.Δv
@@ -26,13 +26,13 @@ function Porkchop(startorb::Orbit, endorb::Orbit, starttimes::AbstractVector{<:R
     return Porkchop(startorb, endorb, starttimes, flighttimes, departure_Δv, arrival_Δv, Δv)
 end
 
-fastPorkchop(startorb::Orbit, endorb::Orbit, starttimes::AbstractVector{<:Real}, flighttimes::AbstractVector{<:Real} 
-    ) = Porkchop(startorb, endorb, starttimes, flighttimes; tfer_fun = fastTransfer)
+fastPorkchop(startorb::Orbit, endorb::Orbit, starttimes::AbstractVector{<:Real}, flighttimes::AbstractVector{<:Real}; kwargs...
+    ) = Porkchop(startorb, endorb, starttimes, flighttimes; tfer_fun = fastTransfer, kwargs...)
 
-Porkchop(startorb::Orbit, endorb::Orbit, stime1, stime2, ftime1, ftime2; npts=100, tfer_fun = Transfer
-    ) = Porkchop(startorb, endorb, collect(range(stime1, stop=stime2, length=npts)), collect(range(ftime1, stop=ftime2, length=npts)); tfer_fun = tfer_fun)
-fastPorkchop(startorb::Orbit, endorb::Orbit, stime1, stime2, ftime1, ftime2; npts=250
-    ) = Porkchop(startorb, endorb, stime1, stime2, ftime1, ftime2; npts=npts, tfer_fun = fastTransfer)
+Porkchop(startorb::Orbit, endorb::Orbit, stime1, stime2, ftime1, ftime2; npts=100, kwargs...
+    ) = Porkchop(startorb, endorb, collect(range(stime1, stop=stime2, length=npts)), collect(range(ftime1, stop=ftime2, length=npts)); tfer_fun = Transfer, kwargs...)
+fastPorkchop(startorb::Orbit, endorb::Orbit, stime1, stime2, ftime1, ftime2; npts=250, kwargs...
+    ) = Porkchop(startorb, endorb, stime1, stime2, ftime1, ftime2; npts=npts, tfer_fun = fastTransfer, kwargs...)
 
 ### descriptive display ###
 

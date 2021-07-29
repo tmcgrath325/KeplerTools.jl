@@ -49,13 +49,13 @@ function departarrive_true_anomaly(r̄ₒ::AbstractVector{<:Real}, prim::Union{C
     return Orbit(a,e,i,Ω,ω,Mₒ,tₒ,prim), eccobj, 0.
 end
 
-function departarrive_true_anomaly(θ, pkorb::Orbit{<:CelestialBody}, v̄rel::AbstractVector{<:Real}, tₛₚ, c)
+function departarrive_true_anomaly(θ, pkorb::Orbit{<:CelestialBody}, v̄rel::AbstractVector{<:Real}, tₛₚ, c; match_pkorb_Mo=true)
     r̄ₒ = orbital_position(θ, pkorb)
     daorb, eccobj = departarrive_true_anomaly(r̄ₒ, pkorb.primary, v̄rel::AbstractVector{<:Real}, tₛₚ, c)[1:2]
 
     a, e, i, Ω, ω, Mₒ = daorb.a, daorb.e, daorb.i, daorb.Ω, daorb.ω, daorb.Mo
 
-    tₒ = true_to_time(θ, pkorb, daorb.epoch - pkorb.period/2)
+    tₒ = match_pkorb_Mo ? true_to_time(θ, pkorb, daorb.epoch - pkorb.period/2) : daorb.epoch
 
     v̄ₒ = time_orbital_velocity(daorb.epoch, daorb)
     v̄ₚₖ = orbital_velocity(θ, pkorb)
@@ -69,7 +69,7 @@ function departarrive_objectivefun(θ, pkorb, v̄rel, tₛₚ, c)
     return norm(Δv̄) * exp(1000*err)        # penalize mismatched direction
 end
 
-function departarrive_orbit(pkorb::Orbit{<:CelestialBody}, v̄rel::AbstractVector{<:Real}, tₛₚ; out=true)
+function departarrive_orbit(pkorb::Orbit{<:CelestialBody}, v̄rel::AbstractVector{<:Real}, tₛₚ; out=true, match_pkorb_Mo=true)
     c = out ? 1 : -1
     # optimize dv against true anomaly, with each true anomaly being optimized for eccentricity
     if pkorb.e < 1           # elliptical case: any true anomaly
@@ -85,7 +85,7 @@ function departarrive_orbit(pkorb::Orbit{<:CelestialBody}, v̄rel::AbstractVecto
     res = optimize(objectivefun, lb, ub, Brent())
     θₚₖ = Optim.minimizer(res)
 
-    daorb, eccobj, Δv̄ = departarrive_true_anomaly(θₚₖ, pkorb, v̄rel, tₛₚ, c)
+    daorb, eccobj, Δv̄ = departarrive_true_anomaly(θₚₖ, pkorb, v̄rel, tₛₚ, c; match_pkorb_Mo=match_pkorb_Mo)
 
     if eccobj > 1e-3
         @warn "departure/arrival velocity mismatch from target direction: $(pkorb.primary.name), $eccobj"
@@ -93,12 +93,7 @@ function departarrive_orbit(pkorb::Orbit{<:CelestialBody}, v̄rel::AbstractVecto
     return daorb, eccobj, Δv̄
 end
 
-function departarrive_orbit(r̄ₒ::AbstractVector{<:Real}, tₒ, prim::Union{CelestialBody,Star}, v̄rel::AbstractVector{<:Real}, tₛₚ; out=true)
-    # return daorb, 0, Δv̄
-end
-
-
-function fast_departarrive_orbit(pkorb::Orbit{<:CelestialBody}, v̄rel::AbstractVector{<:Real}, tₛₚ; out=true, tol=0.1, maxit=50)
+function fast_departarrive_orbit(pkorb::Orbit{<:CelestialBody}, v̄rel::AbstractVector{<:Real}, tₛₚ; out=true,  match_pkorb_Mo=true, tol=0.1, maxit=50)
     c = out ? 1 : -1
     μ = pkorb.primary.μ
     rₛₚ = pkorb.primary.SoI
@@ -155,7 +150,7 @@ function fast_departarrive_orbit(pkorb::Orbit{<:CelestialBody}, v̄rel::Abstract
     end
     Δt = true_to_time(θₛₚ, e, period(a, μ))
     θₚₖ = angle_in_plane(r̄ₒ, pkorb)
-    tₚₖ = true_to_time(θₚₖ, pkorb, tₛₚ-Δt-pkorb.period/2)
+    tₚₖ =  match_pkorb_Mo ? true_to_time(θₚₖ, pkorb, tₛₚ-Δt-pkorb.period/2) : tₛₚ - Δt
     v̄ₚₖ = orbital_velocity(θₚₖ, pkorb)
     Δv̄ = c*(v̄ₒ .- v̄ₚₖ)
     return Orbit(tₚₖ, r̄ₒ, v̄ₒ, pkorb.primary), Δv̄
