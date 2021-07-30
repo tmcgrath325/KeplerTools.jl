@@ -1,7 +1,7 @@
 # Divides each element of the tuple by the specified number
 fade_color(color, div=2) = color.÷div
 
-standard_orbit_plot_size(bd::CelestialObject) = isempty(bd.satellite_bodies) ? bd.SoI : 1.05*maximum(bd.satellite_bodies).orbit.a * (1+maximum(bd.satellite_bodies).orbit.e)
+standard_orbit_plot_size(bd::CelestialObject) = isempty(bd.satellite_bodies) ? bd.SoI : 1.05*(maximum(bd.satellite_bodies).orbit.a*(1+maximum(bd.satellite_bodies).orbit.e) + maximum(bd.satellite_bodies).SoI)
 
 standard_orbit_layout(bd::CelestialObject, size=standard_orbit_plot_size(bd)
                 ) = Layout(autosize=false, width=800, height=600,

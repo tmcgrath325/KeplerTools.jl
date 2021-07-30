@@ -7,13 +7,10 @@ function draw_burn_arrow(brn::Burn; normalize=nothing, scale=nothing, color=(255
     end
 
     length = norm(brn.Δv̄)/normalize*scale
-    @show length
     arrowdir = length*brn.Δv̄/norm(brn.Δv̄)
     tail_pos = time_orbital_position(brn.time, brn.orbit)
     head_pos = tail_pos .+ arrowdir
-    @show head_pos
-    @show arrowdir
-    components = time_orientation_MRP(brn.time, brn.orbit) * brn.Δv̄
+    components = time_orientation_rotation(brn.time, brn.orbit) * brn.Δv̄
 
     tail_trace = scatter3d(;x=[tail_pos[1], head_pos[1]], 
                             y=[tail_pos[2], head_pos[2]], 
@@ -109,7 +106,6 @@ function draw_angle_in_plane(vec::AbstractArray{<:Real}, vecref::AbstractArray{<
         )
     )
     xmid, ymid, zmid = arc[:,Int(round(npts/2))]
-    @show xmid, ymid, zmid
     push!(traces, scatter3d(;x=[1.1*xmid],
                              y=[1.1*ymid],
                              z=[1.1*zmid],
@@ -131,7 +127,6 @@ draw_angle_in_plane(orb::Orbit, orbref::Orbit, t) = draw_angle_in_plane(time_orb
 
 function draw_orbit_position(orb::Orbit, time; color=(255,255,255), name="", symbol="diamond")
     pos = time_orbital_position(time, orb)
-    @show color
     trace = scatter3d(;x=[pos[1]], y=[pos[2]], z=[pos[3]],
                        mode="markers", 
                        marker=attr(color="rgb$color", 
