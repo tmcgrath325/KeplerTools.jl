@@ -1,6 +1,5 @@
 module KeplerTools
 
-using LinearAlgebra: parent
 using StaticArrays
 using Rotations
 using LinearAlgebra
