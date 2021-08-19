@@ -1,38 +1,92 @@
 # Divides each element of the tuple by the specified number
-fade_color(color, div=2) = color.÷div
+fade_color(color, div=3) = color.÷div
 
-standard_orbit_plot_size(bd::CelestialObject) = isempty(bd.satellite_bodies) ? bd.SoI : 1.05*(maximum(bd.satellite_bodies).orbit.a*(1+maximum(bd.satellite_bodies).orbit.e) + maximum(bd.satellite_bodies).SoI)
+function get_orbit_end_time(orb::Orbit, starttime)
+    if orb.e < 1
+        return starttime + orb.period
+    else
+        if typeof(orb.primary) == Star
+            furthest_body = maximum(orb.primary.satellite_bodies)
+            distlim = 1.05 * furthest_body.orbit.a * (1+furthest_body.orbit.e)
+        else
+            distlim = orb.primary.SoI
+        end
+        return true_to_time(orbital_angle(distlim, orb), orb) 
+    end
+end
 
-standard_orbit_layout(bd::CelestialObject, size=standard_orbit_plot_size(bd)
-                ) = Layout(autosize=false, width=800, height=600,
+orbit_plot_size(bd::CelestialObject; rscale=1.5) = isempty(bd.satellite_bodies) ? bd.SoI : rscale*(maximum(bd.satellite_bodies).orbit.a*(1+maximum(bd.satellite_bodies).orbit.e) + maximum(bd.satellite_bodies).SoI)
+
+orbit_layout(bd::CelestialObject, size=orbit_plot_size(bd)
+                ) = Layout(# autosize=false, width=800, height=600,
+                           autosize=true,
                            paper_bgcolor = "rgb(30, 30, 30)",
+                           plot_bgcolor="rgb(30, 30, 30)",
                            margin=attr(l=0, r=0, b=0, t=0),
                            scene=attr(
                                 aspectmode="cube",
-                                xaxis=attr(visible=false, range=[-size, size]),
-                                yaxis=attr(visible=false, range=[-size, size]),
-                                zaxis=attr(visible=false, range=[-size, size]))
+                                xaxis=attr(visible=false, range=[-size, size], showgrid=false),
+                                yaxis=attr(visible=false, range=[-size, size], showgrid=false),
+                                zaxis=attr(visible=false, range=[-size, size], showgrid=false)
                             )
+                        )
 
 
-standard_hoverlabel(color) = attr(bgcolor = "rgb$color",
+orbit_hoverlabel(color) = attr(bgcolor = "rgb$color",
                                   font = attr(family = "Courier New, monospace",
                                               size = 10,
                                   ),
                                   align="left",
 )
 
-"""
-    trace = draw_orbit(orb, angles, starttime; kwargs...)
-    trace = draw_orbit(orb, starttime, endtime=nothing; kwargs...)
+# draw the apoapsis and periapsis of the orbit if they fall within the specified true anomaly
+function draw_orbit_apses(orb::Orbit, startangle, endangle; color=(0,125,255), symbol="circle-open")
+    if orb.e == 0 return AbstractTrace[] end
 
-Creates a trace of an orbit `orb` at each true anomaly in `angles`.
+    periapsis = startangle <= wrap_angle(0., startangle) <= endangle ? orbital_position(0, orb) : fill(NaN,3)
+    apoapsis =  startangle <= wrap_angle(π,  startangle) <= endangle ? orbital_position(π, orb) : fill(NaN,3)
+    if count(isnan, [periapsis..., apoapsis...]) > 3
+        return AbstractTrace[]
+    else
+        return [scatter3d(;x=[periapsis[1], apoapsis[1]], 
+                           y=[periapsis[2], apoapsis[2]], 
+                           z=[periapsis[3], apoapsis[3]],
+                           mode="markers", 
+                           marker=attr(color="rgb$color", 
+                                       symbol=symbol,
+                                       size = 4,
+                           ),
+                           showlegend=false,
+                           hoverinfo="skip",
+        )]
+    end
+end
 
-If a start time and end time are provided, the orbit is drawn between the
-two times. If the end time is not specified, a full period is drawn. 
+# draw the ascending and descending nodes of the orbit if they fall within the specified true anomaly range
+function draw_orbit_nodes(orb::Orbit, startangle, endangle; color=(0,255,125), symbol="circle-open")
+    if orb.i == 0 || orb.e > 1 return AbstractTrace[] end
 
-"""
-function draw_orbit(orb::Orbit, angles::AbstractVector{<:Real}, starttime; color=(255,255,255), fadedcolor=fade_color(color), name="", timedef=KerbalTime)
+    ascending  = startangle <= wrap_angle(-orb.ω,  startangle) <= endangle ? orbital_position(-orb.ω,  orb) : fill(NaN,3)
+    descending = startangle <= wrap_angle(π-orb.ω, startangle) <= endangle ? orbital_position(π-orb.ω, orb) : fill(NaN,3)
+    if count(isnan, [ascending..., descending...]) > 3
+        return AbstractTrace[]
+    else
+        return [scatter3d(;x=[ascending[1], descending[1]], 
+                           y=[ascending[2], descending[2]], 
+                           z=[ascending[3], descending[3]],
+                           mode="markers", 
+                           marker=attr(color="rgb$color", 
+                                       symbol=symbol,
+                                       size = 3,
+                           ),
+                           showlegend=false,
+                           hoverinfo="skip",
+            )]
+    end
+end
+
+# draw the orbit positions at each angle, connected by a line
+function draw_orbit_path(orb::Orbit, angles::AbstractVector{<:Real}, starttime; color=(255,255,255), name="", timedef=EarthTime)
     pos_mat = fill(NaN, 3, length(angles))
     vel_mat = fill(NaN, 3, length(angles))
     times = fill(NaN, length(angles))
@@ -67,41 +121,39 @@ function draw_orbit(orb::Orbit, angles::AbstractVector{<:Real}, starttime; color
                         "   i  = $(round(rad2deg(orb.i), digits=4))°<br>" ,
                         "   ω  = $(round(rad2deg(orb.ω), digits=4))°<br>",
                         "   Ω  = $(round(rad2deg(orb.Ω), digits=4))°<br>",
-                        "   Mₒ = $(round(rad2deg(orb.Mo), digits=4)) rad<br>",
+                        "   Mₒ = $(round(orb.Mo, digits=4)) rad<br>",
                         "   tₒ = $(round(orb.epoch, digits=2)) s"
     ])
-
-    trace = scatter3d(;x=pos_mat[1,:], y=pos_mat[2,:], z=pos_mat[3,:],
-                       customdata = cdata,
-                       mode="lines", 
-                       line=attr(color=angles, 
-                                 colorscale = [[0, "rgb$fadedcolor"], 
-                                               [1, "rgb$color"]]
-                       ),
-                       showlegend=false, name=name,
-                       hovertemplate=hovertemp,
-                       hoverlabel = standard_hoverlabel(color),
-    )
-    return trace
+    return scatter3d(;x=pos_mat[1,:], y=pos_mat[2,:], z=pos_mat[3,:],
+                      customdata = cdata,
+                      mode="lines", 
+                      line=attr(color=angles, 
+                                colorscale = [[0, "rgb$(fade_color(color))"], 
+                                              [1, "rgb$color"]]
+                      ),
+                      showlegend=false, name=name,
+                      hovertemplate=hovertemp,
+                      hoverlabel = orbit_hoverlabel(color),
+        )
 end
 
-function draw_orbit(orb::Orbit, starttime, endtime=nothing; npts=200, kwargs...)
+"""
+    trace = draw_orbit(orb, starttime, endtime=nothing; kwargs...)
+
+Creates a vector of traces of an orbit `orb` at each true anomaly in `angles`.
+
+When both a start time and end time are provided, the orbit is drawn between the
+two times. If the end time is not specified, a full period is drawn. 
+"""
+function draw_orbit(orb::Orbit, starttime, endtime=nothing; maxpts=100, apses=false, nodes=false, kwargs...)
     # choose end time if not decided (full revolution or until SoI departure)
     if isnothing(endtime)
-        if orb.e < 1
-            endtime = starttime + orb.period
-        else
-            if typeof(orb.primary) == Star
-                furthest_body = maximum(orb.primary.satellite_bodies)
-                distlim = 1.05 * furthest_body.orbit.a * (1+furthest_body.orbit.e)
-            else
-                distlim = orb.primary.SoI
-            end
-            endtime = true_to_time(orbital_angle(distlim, orb), orb) 
+        endtime = get_orbit_end_time(orb, starttime)
+        if orb.e > 1
             if endtime < starttime 
                 return AbstractTrace[]
             end
-            starttime = true_to_time(-orbital_angle(distlim, orb), orb) 
+            starttime = true_to_time(-time_to_true(endtime, orb), orb) 
         end
     end
 
@@ -110,10 +162,20 @@ function draw_orbit(orb::Orbit, starttime, endtime=nothing; npts=200, kwargs...)
         endtime = starttime + orb.period
     end
 
+    traces = AbstractTrace[]
+
     startangle = time_to_true(starttime, orb)
     endangle = wrap_angle(time_to_true(endtime, orb), startangle+1e-3)
+    npts = max(2, Int(round(maxpts/(2π/(endangle-startangle)))))
     angles = collect(range(startangle, stop=endangle, length=npts))
-    return draw_orbit(orb, angles, starttime; kwargs...)
+    push!(traces, draw_orbit_path(orb, angles, starttime; kwargs...))
+    if apses
+        append!(traces, draw_orbit_apses(orb, startangle, endangle))
+    end
+    if nodes
+        append!(traces, draw_orbit_nodes(orb, startangle, endangle))
+    end
+    return traces
 end
 
 draw_orbit(bd::CelestialBody, starttime, endtime=nothing; kwargs...
@@ -121,13 +183,13 @@ draw_orbit(bd::CelestialBody, starttime, endtime=nothing; kwargs...
 draw_orbit(bd::SpaceObject, starttime, endtime=nothing; kwargs...
     ) = draw_orbit(bd.orbit, starttime, endtime; name=bd.name, kwargs...)
 
-function draw_central_body_orbit(bd::CelestialObject, time; npts=200)
+function draw_central_body_orbit(bd::CelestialObject, time; npts=50, kwargs...)
     if typeof(bd) == Star
         return AbstractTrace[]
     end
     θ = time_to_true(time, bd.orbit)
     r = orbital_distance(θ, bd.orbit)
-    dlim = isempty(bd.satellite_bodies) ? bd.SoI : 1.1*maximum(bd.satellite_bodies).orbit.a
+    dlim = isempty(bd.satellite_bodies) ? bd.SoI : orbit_plot_size(bd; kwargs...)
     arcwidth = dlim / r              # angle in radians
     angles = collect(range(θ-arcwidth, stop=θ+arcwidth, length=npts))
 
@@ -136,15 +198,15 @@ function draw_central_body_orbit(bd::CelestialObject, time; npts=200)
     for (i,a) in enumerate(angles)
         pos_mat[:,i] = orbital_position(a, bd.orbit) .- mid_pos
     end
-
-    trace = scatter3d(;x=pos_mat[1,:], y=pos_mat[2,:], z=pos_mat[3,:],
+    
+    angle_intensity = [wrap_angle(a, θ) for a in angles]
+    return  scatter3d(;x=pos_mat[1,:], y=pos_mat[2,:], z=pos_mat[3,:],
                        mode="lines", 
-                       line=attr(color=angles, 
-                                 colorscale = [[0, "rgb$(fade_color(bd.color,4))"], 
+                       line=attr(color=angle_intensity, 
+                                 colorscale = [[0, "rgb$(fade_color(bd.color,3))"], 
                                                [1, "rgb$(bd.color)"]]
                        ),
                        showlegend=false,
                        hoverinfo="skip",
-    )
-    return trace
+        )
 end

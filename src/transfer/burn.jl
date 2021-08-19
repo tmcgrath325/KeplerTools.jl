@@ -28,6 +28,14 @@ orientation_rotation(pos, vel, h=cross(pos, vel)
 orientation_rotation(θ, orb::Orbit) = orientation_rotation(state_vector(θ, orb)...)
 
 """
+    rotmat = time_orientation_rotation(t, orb)
+
+Computes the rotation matrix which defines, the prograde, radial, and normal directions
+for the orbital state vector of Orbit `orb` at time `t`.
+"""
+time_orientation_rotation(t, orb::Orbit) = orientation_rotation(time_to_true(t, orb), orb)
+
+"""
     prograde, normal, radial = orientation_components(brn)
 
 Computes the prograde, normal, and radial components of the Burn `brn`.
@@ -52,7 +60,7 @@ function Base.show(io::IO, brn::Burn)
         "  total Δv:\t$(norm(brn.Δv̄)) m/s\n",
         "  prograde:\t$(o_Δv̄[1]) m/s\n",
         "  normal:\t$(o_Δv̄[2]) m/s\n",
-        "  radial:\t$(-o_Δv̄[3]) m/s\n",
+        "  radial:\t$(o_Δv̄[3]) m/s\n",
     )
     return
 end

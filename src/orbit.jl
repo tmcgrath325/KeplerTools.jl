@@ -24,6 +24,8 @@ struct Orbit{P}
     basis::RotZXZ{Float64}
 end
 
+Base.hash(orb::Orbit, h::UInt) = hash_struct(orb, h, (:a, :e, :i, :Ω, :ω, :Mo, :epoch, :primary))
+
 ### helper methods ###
 """
     Δt = period(a, μ)

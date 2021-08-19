@@ -10,6 +10,8 @@ struct SpaceObject{P}
     primary::P
 end
 
+Base.hash(ob::SpaceObject, h::UInt) = hash_struct(ob, h, (:name, :orbit))
+
 """
 A celestial body (e.g. a planet or moon) that is in orbit around a larger body.
 """
@@ -27,6 +29,8 @@ struct CelestialBody{P} <: CelestialObject
     satellite_objects::Vector{<:SpaceObject}
 end
 
+Base.hash(bd::CelestialBody, h::UInt) = hash_struct(bd, h, (:name, :eqradius, :μ, :SoI, :rotperiod, :rotinitial, :orbit, :color))
+
 """
 A star that is not in orbit around a larger body. Serves as the root of a tree defining a solar system.
 """
@@ -38,6 +42,8 @@ struct Star <: CelestialObject
     satellite_bodies::Vector{CelestialBody{Star}}
     satellite_objects::Vector{SpaceObject{Star}}
 end
+
+Base.hash(bd::Star, h::UInt) = hash_struct(bd, h, (:name, :eqradius, :μ, :color))
 
 ### alternate constructors ###
 
@@ -59,13 +65,19 @@ set_soi(μ, μprim, a) = a *(μ/μprim)^(2/5)
 Adds a `CelestialBody` or `SpaceObject` to the lists of satellites around its primary body.
 """
 function add_to_primary!(bd::CelestialBody)
-    push!(bd.primary.satellite_bodies, bd)
-    sort!(bd.primary.satellite_bodies)
+    # check if a (mostly) equivalent body hasn't already been added
+    if hash(bd) ∉ [hash(sat) for sat in bd.primary.satellite_bodies]
+        push!(bd.primary.satellite_bodies, bd)
+        sort!(bd.primary.satellite_bodies)
+    end
 end
 
 function add_to_primary!(ob::SpaceObject)
-    push!(ob.primary.satellite_objects, bd)
-    sort!(ob.primary.satellite_objects)
+    # check if a (mostly) equivalent object hasn't already been added
+    if hash(ob) ∉ [hash(sat) for sat in ob.primary.satellite_objects]
+        push!(ob.primary.satellite_objects, ob)
+        sort!(ob.primary.satellite_objects)
+    end
 end
 
 """
