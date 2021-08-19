@@ -1,7 +1,7 @@
-using Base: byte_string_classify
 using KeplerTools
 using LinearAlgebra
 using Test
+using Statistics
 
 const KT = KeplerTools
 
@@ -20,19 +20,25 @@ end
 
 @testset "Kepler's Equation Solver" begin
     # elliptical case
-    for i=1:50
-        e = rand()
-        θ = 2π*rand()
-        M = KeplerTools.true_to_mean(θ, e)
-        @test KeplerTools.mean_to_true(M, e) ≈ θ
-    end 
+    es = collect(range(0,stop=0.999,length=1000))
+    Ms = collect(range(-π,stop=π,length=1000))
+    errs = fill(NaN, length(es), length(Ms))
+    for (i,e) in enumerate(es) for (j,M) in enumerate(Ms)
+        θ = KT.mean_to_true(M, e)
+        errs[i,j] = abs(KT.angledist(KT.true_to_mean(θ, e), M))
+    end end
+    @test maximum(errs) < 1e-9
+    @test mean(errs) < 1e-12
     # hyperbolic case
-    for i=1:50
-        e = 1+9*rand()
-        θ = π*rand() - π/2
-        M = KeplerTools.true_to_mean(θ, e)
-        @test KeplerTools.mean_to_true(M, e) ≈ θ
-    end 
+    es = collect(range(1.01,stop=100,length=1000))
+    Ms = collect(range(-100*π,stop=100*π,length=1000))
+    errs = fill(NaN, length(es), length(Ms))
+    for (i,e) in enumerate(es) for (j,M) in enumerate(Ms)
+        θ = KT.mean_to_true(M, e)
+        errs[i,j] = abs(KT.angledist(KT.true_to_mean(θ, e), M))
+    end end
+    @test maximum(errs) < 1e-9
+    @test mean(errs) < 1e-12
 end
 
 @testset "Anomalies" begin
@@ -172,7 +178,7 @@ end
 
     # transfer from Kerbin to Duna, from alexmoon's app: https://alexmoon.github.io/ksp/
     include(joinpath(@__DIR__, "..", "data", "kerbol_system.jl"))
-    torb = KeplerTools.p_lambert(kerbin.orbit, duna.orbit, 5091522., 5588238. +5091522.)
+    torb = KT.p_lambert(kerbin.orbit, duna.orbit, 5091522., 5588238. +5091522.)
     @test isapprox(torb.a, 1.68e10, rtol=0.01)            
     @test isapprox(torb.e, 0.194, rtol=0.01)
 
@@ -248,7 +254,6 @@ end
     θₒ = time_to_true(dorb.epoch, pkorb)
     d2orb, eccobj, Δv̄2 = departure_orbit(pkorb, v̄rel, starttime)
     @test isapprox(d2orb, dorb; atol=0.01, rtol=0.01)
-
 end
 
 @testset "Instantaneous Burns" begin
@@ -264,18 +269,31 @@ end
     starttime = 5091522.
     endtime = starttime + 5588238.;
     tfer = Transfer(startorb, endorb, starttime, endtime)
+    ftfer = fastTransfer(startorb, endorb, starttime, endtime)
+    @test isapprox(tfer.Δv, ftfer.Δv, rtol=0.01)
 
     # Porkchop plot containing time ranges around above transfer
     startrange = [0.,               852*6*3600.]
     flightrange =[151 *6 *3600.,    453*6. *3600.]
     pc = Porkchop(startorb, endorb, startrange..., flightrange...)
-
     @test isapprox(minimum(pc.Δv), tfer.Δv; rtol=0.01)
+    @test Transfer(startorb, endorb, KT.best_start_end_times(pc)...).Δv == minimum(pc.Δv)
+
+    fpc = fastPorkchop(startorb, endorb, startrange..., flightrange...)
+    @test isapprox(minimum(fpc.Δv), tfer.Δv; rtol=0.01)
+    @test fastTransfer(startorb, endorb, KT.best_start_end_times(fpc)...).Δv == minimum(fpc.Δv)
+
+    # optimize patch times and positions
+    @test sum(norm, KT.patch_position_errors(tfer)) > 0
+    tfer = match_patch_positions(tfer)
+
+    @test sum(norm, KT.patch_position_errors(tfer)) < 1
+
 end
 
 @testset "SoI patch propagation" begin
     include(joinpath(@__DIR__, "..", "data", "kerbol_system.jl"))
-    #TODO
+    # TODO
 end
 
 

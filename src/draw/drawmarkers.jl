@@ -10,7 +10,7 @@ function draw_burn_arrow(brn::Burn; normalize=nothing, scale=nothing, color=(255
     arrowdir = length*brn.Δv̄/norm(brn.Δv̄)
     tail_pos = time_orbital_position(brn.time, brn.orbit)
     head_pos = tail_pos .+ arrowdir
-    components = time_orientation_rotation(brn.time, brn.orbit) * brn.Δv̄
+    components = orientation_components(brn)
 
     tail_trace = scatter3d(;x=[tail_pos[1], head_pos[1]], 
                             y=[tail_pos[2], head_pos[2]], 
@@ -34,7 +34,7 @@ function draw_burn_arrow(brn::Burn; normalize=nothing, scale=nothing, color=(255
                                              "$(round(components[3],digits=2)) m/s normal<br>",
                                              "$(round(components[2],digits=2)) m/s radial<br><br>",
                                              "UT: $(round(brn.time,digits=2)) s"]),
-                       hoverlabel = standard_hoverlabel(color),
+                       hoverlabel = orbit_hoverlabel(color),
                        
     )
     return [tail_trace, head_trace]
@@ -55,10 +55,10 @@ function draw_ref_line(r; color=(255,255,255), dash="longdash", width=1)
 end
 
 
-function draw_angle_in_plane(vec::AbstractArray{<:Real}, vecref::AbstractArray{<:Real}, basis; npts=100, color=(255,255,255), linedash="dot", arcdash="dash", width=1)
-    r = 1.25*max(norm(vec), norm(vecref))
+function draw_angle_in_plane(vec::AbstractArray{<:Real}, vecref::AbstractArray{<:Real}, basis; npts=100, color=(255,255,255), linedash="dot", arcdash="dash", width=1, rscale=1.25, wrap_min=-π)
+    r = rscale*max(norm(vec), norm(vecref))
     θ = angle_in_plane(vecref, basis)
-    Δθ = wrap_angle(angle_in_plane(vec, vecref, basis), -π)
+    Δθ = wrap_angle(angle_in_plane(vec, vecref, basis), wrap_min)
     vecplane, vecrefplane = basis\vec, basis\vecref
     arcplane = fill(NaN, 3, npts)
     angles = collect(range(θ, stop=θ+Δθ, length=npts))
@@ -69,9 +69,19 @@ function draw_angle_in_plane(vec::AbstractArray{<:Real}, vecref::AbstractArray{<
     arc = basis*arcplane
     
     traces = AbstractTrace[]
-    push!(traces, scatter3d(;x=[vecrefproj[1], arc[1,1]], 
-                             y=[vecrefproj[2], arc[2,1]], 
-                             z=[vecrefproj[3], arc[3,1]],
+    # dashed lines
+    xs = arc[1,:]
+    prepend!(xs, [vecrefproj[1], arc[1,1]])
+    append!(xs, vecproj[1], arc[1,end])
+    ys = arc[2,:]
+    prepend!(ys, [vecrefproj[2], arc[2,1]])
+    append!(ys, vecproj[2], arc[2,end])
+    zs = arc[3,:]
+    prepend!(zs, [vecrefproj[3], arc[3,1]])
+    append!(zs, vecproj[3], arc[3,end])
+    push!(traces, scatter3d(;x=xs, 
+                             y=ys, 
+                             z=zs,
                              mode="lines",
                              line=attr(color="rgb$color",
                                        dash=linedash,
@@ -81,40 +91,19 @@ function draw_angle_in_plane(vec::AbstractArray{<:Real}, vecref::AbstractArray{<
                              showlegend=false,    
         )
     )
-    push!(traces, scatter3d(;x=[vecproj[1], arc[1,end]], 
-                             y=[vecproj[2], arc[2,end]], 
-                             z=[vecproj[3], arc[3,end]],
-                             mode="lines",
-                             line=attr(color="rgb$color",
-                                       dash=linedash,
-                                       width=width,
-                             ), 
-                             hoverinfo="skip",       
-                             showlegend=false,          
-        )
-    )
-    push!(traces, scatter3d(;x=arc[1,:],
-                             y=arc[2,:],
-                             z=arc[3,:],
-                             mode="lines",
-                             line=attr(color="rgb$color",
-                                       dash=arcdash,
-                                       width=width,
-                             ),    
-                             hoverinfo="skip", 
-                             showlegend=false, 
-        )
-    )
+    # text
+    sqrtrscale = sqrt(rscale)
     xmid, ymid, zmid = arc[:,Int(round(npts/2))]
-    push!(traces, scatter3d(;x=[1.1*xmid],
-                             y=[1.1*ymid],
-                             z=[1.1*zmid],
-                             mode="marker+text",
+    push!(traces, scatter3d(;x=[sqrtrscale*xmid],
+                             y=[sqrtrscale*ymid],
+                             z=[sqrtrscale*zmid],
+                             mode="text",
                              text="$(round(rad2deg(Δθ), digits=2))°",
                              textfont = attr(color="rgb$color",
-                                             size=11,
+                                             size=12,
                                              family="Courier New, monospace",
                              ),
+                             textposition="middle center",
                              hoverinfo="skip", 
                              showlegend=false,     
     )
@@ -135,8 +124,7 @@ function draw_orbit_position(orb::Orbit, time; color=(255,255,255), name="", sym
                        ),
                        showlegend=false, name=name,
                        hovertemplate=name,
-                       hoverlabel = standard_hoverlabel(color),
+                       hoverlabel = orbit_hoverlabel(color),
     )
     return trace
 end
-

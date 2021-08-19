@@ -7,7 +7,7 @@ and separated by time interval `Δt`.
 Because there are two solutions, `dir` can be used to specifiy a clockwise or anti-clockwise orbit
 relative to the coordinate system.
 """
-function p_lambert_velocity(r̄ₛ::AbstractVector{<:Real}, r̄ₑ::AbstractVector{<:Real}, Δt, μ; dir=1, tol=1e-12, maxit=200)
+function p_lambert_velocity(r̄ₛ::AbstractVector{<:Real}, r̄ₑ::AbstractVector{<:Real}, Δt, μ; dir=1, atol=1e-12, maxit=200, warntol=atol*1000)
     rₛ, rₑ = norm(r̄ₛ), norm(r̄ₑ)
 
     # true anomaly change for the transfer
@@ -33,14 +33,15 @@ function p_lambert_velocity(r̄ₛ::AbstractVector{<:Real}, r̄ₑ::AbstractVect
 
     # Newton-p-iteration
     it = 0
-    err = tol + 1
+    err = atol + 1
     p = (pj+pjj)/2
     pnext = p
     f = g = 0.
-    while (err > tol) && (it < maxit)
+    while (err > atol) && (it < maxit)
         it = it + 1
         p = pnext
         a = m*k*p / ((2m-L^2)*(p^2) + 2k*L*p - k^2)
+        a = a==0 ? 1e-100 : a   # to avoid parabolic case ?
         f = 1 - rₑ/p * (1 - cos(Δθ))
         g = rₛ * rₑ * sin(Δθ) / √(μ*p)
         df = √(μ/p)*tan(Δθ/2)*((1-cos(Δθ))/p - 1/rₛ - 1/rₑ);
@@ -64,9 +65,9 @@ function p_lambert_velocity(r̄ₛ::AbstractVector{<:Real}, r̄ₑ::AbstractVect
             pnext = (p + pmax)/2
         end
     end
-    # if it == maxit
-    #     @warn "Lambert solver failed to converge: err = $err"
-    # end
+    if err == warntol
+        @warn "Lambert solver failed to converge: err = $err"
+    end
     v̄ₛ = (r̄ₑ - f*r̄ₛ)/g
     return v̄ₛ
 end

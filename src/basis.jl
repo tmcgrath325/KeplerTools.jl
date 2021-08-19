@@ -58,14 +58,6 @@ perifocal_to_inertial_bases(vec::AbstractVector{<:Real}, basis::Rotation{3,Float
 perifocal_to_inertial_bases(vec::AbstractVector{<:Real}, orb::Orbit) = perifocal_to_inertial_bases(vec, orb.basis)
 
 """
-    rotmat = time_orientation_rotation(t, orb)
-
-Computes the rotation matrix which defines, the prograde, radial, and normal directions
-for the orbital state vector of Orbit `orb` at time `t`.
-"""
-time_orientation_rotation(t, orb::Orbit) = orientation_rotation(time_to_true(t, orb), orb)
-
-"""
     rotmat = align_vectors(vec, vecref)
 
 Computes the rotation matrix to align `vec` with `vecref`.
@@ -74,6 +66,8 @@ function align_vectors(vec::AbstractVector{<:Real}, vecref::AbstractVector{<:Rea
     nvec, nvecref = normalize(vec), normalize(vecref)
     axis = normalize(cross(nvec, nvecref))
     angle = wrap_acos(dot(nvec, nvecref))
-
+    if angle == 0
+        return one(RotMatrix{3, Float64})
+    end
     return AngleAxis(angle, axis...)
 end

@@ -1,6 +1,8 @@
-standard_porkchop_layout(
-    ) = Layout(autosize=false, width=800, height=600,
+porkchop_layout(
+    ) = Layout(# autosize=true, width=800, height=600,
+            autosize=true,
             paper_bgcolor = "rgb(30, 30, 30)",
+            plot_bgcolor="rgb(30, 30, 30)",
             font = attr(family = "Courier New, monospace",
                         size = 10,
                         color = "rgb(200, 200, 200)"
@@ -11,6 +13,7 @@ standard_porkchop_layout(
                        spikecolor="rgb(200, 200, 200)",
                        spikedash="solid",
                        spikethickness=-1,
+                       showgrid=false,
             ),
             yaxis=attr(title_text="Transfer duration (days)",
                        showspikes=true,
@@ -18,6 +21,7 @@ standard_porkchop_layout(
                        spikecolor="rgb(200, 200, 200)",
                        spikedash="solid",
                        spikethickness=-1,
+                       showgrid=false,
             ),
 )
 
@@ -29,12 +33,8 @@ Creates a trace of a porkchop plot.
 function draw_porkchop(pc::Porkchop; levelscale=1.1, nlevels=16, timedef=KerbalTime, plottype=:Δv)
     minΔv = minimum(getfield(pc, plottype))
     lvls = minΔv * [levelscale .^ i for i=0:nlevels]
-    logΔv = fill(NaN, size(getfield(pc, plottype))...) 
-    for (i,el) in enumerate(getfield(pc, plottype))
-        logΔv[i] = log(el)/log(levelscale)
-    end
+    logΔv = transpose(broadcast(x-> log(x)/log(levelscale), getfield(pc, plottype)))
     loglvls = [log(lvl)/log(levelscale) for lvl in lvls]
-    @show loglvls
     colorlabels = ["$(Int(floor(lvl)))" for lvl in lvls]
 
     day_to_sec = timedef["day"] * timedef["hour"] * timedef["minute"]

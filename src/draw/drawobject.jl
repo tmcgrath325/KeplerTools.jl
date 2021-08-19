@@ -12,28 +12,31 @@ function draw_wireframe_sphere(pos, r; npts=11, color=(255,255,255), name=nothin
 
     hover = isnothing(name) ? "skip" : nothing
 
-    traces = AbstractTrace[]
-    for j=1:length(v_xs)
-        push!(traces, scatter3d(;x=v_xs[j], y=v_ys[j], z=v_zs[j], 
-                                 mode="lines",
-                                 line=attr(color="rgb$color"),
-                                 opacity=opacity,
-                                 showlegend=false, showscale=false, name=name,
-                                 hovertemplate=name, hoverinfo=hover,
-                               )
-        )
+    xs, ys, zs = Float64[], Float64[], Float64[]
+    for i=1:length(v_xs)
+        append!(xs, v_xs[i])
+        push!(xs, NaN)
+        append!(ys, v_ys[i])
+        push!(ys, NaN)
+        append!(zs, v_zs[i])
+        push!(zs, NaN)
     end
-    for i=1:length(h_xs)
-        push!(traces, scatter3d(;x=h_xs[i], y=h_ys[i], z=h_zs[i], 
-                                 mode="lines",
-                                 line=attr(color="rgb$color"),
-                                 opacity=opacity,
-                                 showlegend=false, showscale=false, name=name,
-                                 hovertemplate=name, hoverinfo=hover,
-                               )
-        )
+    for j=1:length(h_xs)
+        append!(xs, h_xs[j])
+        push!(xs, NaN)
+        append!(ys, h_ys[j])
+        push!(ys, NaN)
+        append!(zs, h_zs[j])
+        push!(zs, NaN)
     end
-    return traces
+
+    return scatter3d(;x=xs, y=ys, z=zs, 
+                      mode="lines",
+                      line=attr(color="rgb$color"),
+                      opacity=opacity,
+                      showlegend=false, showscale=false, name=name,
+                      hovertemplate=name, hoverinfo=hover,
+            )
 end
 
 draw_central_body(bd::Union{CelestialBody,Star}; kwargs...
